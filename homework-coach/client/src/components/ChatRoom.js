@@ -11,7 +11,7 @@ const subjectConfig = {
     starters: [
       "I need help with fractions",
       "Can you help me with word problems?",
-      "I'm stuck on my maths homework",
+      "📝 Review my marked homework",
     ],
   },
   english: {
@@ -22,7 +22,7 @@ const subjectConfig = {
     starters: [
       "I need to write an essay",
       "Can you help me understand this text?",
-      "I'm learning new vocabulary words",
+      "📝 Review my marked homework",
     ],
   },
   science: {
@@ -33,7 +33,7 @@ const subjectConfig = {
     starters: [
       "How does photosynthesis work?",
       "I have a science project question",
-      "Help me understand the solar system",
+      "📝 Review my marked homework",
     ],
   },
   geography: {
@@ -43,8 +43,8 @@ const subjectConfig = {
     icon: Globe,
     starters: [
       "Help me learn the continents",
-      "What's the difference between countries and states?",
       "I need to learn about a country for school",
+      "📝 Review my marked homework",
     ],
   },
   history: {
@@ -55,7 +55,7 @@ const subjectConfig = {
     starters: [
       "Tell me about ancient civilizations",
       "I'm learning about a historical figure",
-      "Why did this event happen in history?",
+      "📝 Review my marked homework",
     ],
   },
   french: {
@@ -66,7 +66,7 @@ const subjectConfig = {
     starters: [
       "How do I introduce myself in French?",
       "Help me with French vocabulary",
-      "I need to practice French conversation",
+      "📝 Review my marked homework",
     ],
   },
   spanish: {
@@ -77,7 +77,7 @@ const subjectConfig = {
     starters: [
       "How do I say hello in Spanish?",
       "Help me with Spanish vocabulary",
-      "I need to practice Spanish conversation",
+      "📝 Review my marked homework",
     ],
   },
 };
@@ -249,7 +249,7 @@ function ChatRoom() {
               Tell me what you're working on and we'll figure it out together. 🌟
             </p>
             <p className="image-hint">
-              📷 You can also share a photo of your textbook or worksheet!
+              📷 Share photos of your textbook, worksheet, or marked homework for help!
             </p>
             <div className="starter-questions">
               {config.starters.map((starter, idx) => (

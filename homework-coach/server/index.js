@@ -321,12 +321,47 @@ app.post('/api/chat', async (req, res) => {
     // Prepare messages for Claude
     const systemPrompt = SYSTEM_PROMPTS[subject] || SYSTEM_PROMPTS.maths;
     const yearContext = year ? `\n\nThe student is in Year ${year}.` : '';
-    const imageContext = image ? '\n\nThe student has shared an image. Please look at the image carefully and help them understand the content. Remember to use the Socratic method - guide them with questions rather than giving direct answers.' : '';
 
-    // Call Claude API
+    // Check if this is a homework review request
+    const isHomeworkReview = message && (
+      message.toLowerCase().includes('marked homework') ||
+      message.toLowerCase().includes('review my') ||
+      message.toLowerCase().includes('teacher marked') ||
+      message.toLowerCase().includes('got back') ||
+      message.toLowerCase().includes('my mark') ||
+      message.toLowerCase().includes('my grade') ||
+      message.toLowerCase().includes('teacher said') ||
+      message.toLowerCase().includes('teacher wrote') ||
+      message.toLowerCase().includes('feedback from')
+    );
+
+    // Build appropriate context for images
+    let imageContext = '';
+    if (image) {
+      if (isHomeworkReview) {
+        imageContext = `\n\nIMPORTANT: The student has shared their MARKED HOMEWORK for review. This is work that has already been marked by their teacher.
+
+Your role is to help them LEARN FROM THEIR MISTAKES. Please:
+1. First, acknowledge what they did well - be encouraging about correct answers
+2. Look at the teacher's marks and comments carefully
+3. For questions they got wrong:
+   - Explain WHY the answer was incorrect (without being harsh)
+   - Use the Socratic method to guide them to understand the correct approach
+   - Ask questions like "What do you think the teacher was looking for here?"
+4. Identify patterns - if they made similar mistakes, point this out gently
+5. Suggest specific topics they should revise to improve
+6. End with encouragement and a clear "next step" they can work on
+
+Remember: The goal is to help them understand their mistakes so they can do better next time. Be supportive - getting homework back can feel disappointing!`;
+      } else {
+        imageContext = '\n\nThe student has shared an image. Please look at the image carefully and help them understand the content. Remember to use the Socratic method - guide them with questions rather than giving direct answers.';
+      }
+    }
+
+    // Call Claude API (use more tokens for homework reviews as they need detailed feedback)
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
+      max_tokens: isHomeworkReview ? 800 : 500,
       system: systemPrompt + yearContext + imageContext,
       messages: messagesForClaude,
     });
