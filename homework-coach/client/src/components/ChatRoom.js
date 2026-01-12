@@ -1,92 +1,135 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X } from 'lucide-react';
+import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const subjectConfig = {
+// UK National Curriculum topics by subject and year
+const curriculumTopics = {
   maths: {
     name: 'Maths',
-    coach: 'Coach Mathilda',
-    emoji: '🧮',
+    sensei: 'Sensei Nova',
+    emoji: '⚡',
     icon: Calculator,
+    years: {
+      7: ['Number operations', 'Fractions & decimals', 'Ratio & proportion', 'Algebra basics', 'Geometry', 'Statistics'],
+      8: ['Algebra expressions', 'Linear equations', 'Angles & shapes', 'Area & perimeter', 'Probability', 'Data handling'],
+      9: ['Indices & standard form', 'Linear graphs', 'Pythagoras\' theorem', 'Transformations', 'Constructions', 'Scatter graphs'],
+      10: ['Quadratics', 'Simultaneous equations', 'Trigonometry', 'Circle theorems', 'Vectors', 'Compound measures'],
+      11: ['Algebraic fractions', 'Surds', 'Advanced trigonometry', 'Iteration', 'Functions', 'Proof'],
+    },
     starters: [
-      "I need help with fractions",
+      "I need help with my maths homework",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["algebra", "percentages", "Pythagoras", "ratios"],
   },
   english: {
     name: 'English',
-    coach: 'Coach Riley',
+    sensei: 'Sensei Lyra',
     emoji: '📖',
     icon: BookOpen,
+    years: {
+      7: ['Reading comprehension', 'Descriptive writing', 'Poetry analysis', 'Grammar & punctuation', 'Spelling', 'Speaking & listening'],
+      8: ['Narrative writing', 'Persuasive writing', 'Shakespeare introduction', 'Media texts', 'Inference skills', 'Vocabulary building'],
+      9: ['Essay structure', 'Character analysis', 'Theme analysis', 'Rhetoric techniques', 'Comparative writing', 'Language devices'],
+      10: ['GCSE Literature texts', 'Unseen poetry', 'Transactional writing', 'Analytical writing', 'Quotation integration', 'Context'],
+      11: ['Exam technique', 'A Christmas Carol', 'Macbeth', 'Power & Conflict poetry', 'Language Paper skills', 'Revision'],
+    },
     starters: [
-      "I need to write an essay",
+      "I need help with an essay",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["essay structure", "analysing poetry", "persuasive writing", "Shakespeare"],
   },
   science: {
     name: 'Science',
-    coach: 'Coach Newton',
+    sensei: 'Sensei Phoenix',
     emoji: '🔬',
     icon: FlaskConical,
+    years: {
+      7: ['Cells & organisms', 'Particles & matter', 'Forces & motion', 'Energy', 'Atoms & elements', 'Reproduction'],
+      8: ['Photosynthesis', 'Respiration', 'Chemical reactions', 'Light & sound', 'Earth & space', 'Health'],
+      9: ['Inheritance', 'Periodic table', 'Electricity', 'Waves', 'Ecosystems', 'Acids & alkalis'],
+      10: ['Cell biology', 'Organisation', 'Atomic structure', 'Bonding', 'Energy changes', 'Electricity & circuits'],
+      11: ['Homeostasis', 'Inheritance & variation', 'Organic chemistry', 'Rates of reaction', 'Forces', 'Magnetism & EM'],
+    },
     starters: [
-      "How does photosynthesis work?",
+      "Help me understand a science concept",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["atoms", "electricity", "the human body", "chemical reactions"],
   },
   geography: {
     name: 'Geography',
-    coach: 'Coach Atlas',
+    sensei: 'Sensei Terra',
     emoji: '🌍',
     icon: Globe,
+    years: {
+      7: ['Map skills', 'Weather & climate', 'Rivers', 'Settlements', 'The UK', 'Africa'],
+      8: ['Ecosystems', 'Population', 'Urbanisation', 'Natural hazards', 'Development', 'Russia'],
+      9: ['Climate change', 'Resource management', 'Coasts', 'Global cities', 'Migration', 'The Middle East'],
+      10: ['The Living World', 'Physical landscapes UK', 'Urban issues', 'The changing economy', 'Fieldwork', 'Issue evaluation'],
+      11: ['Resource management', 'The challenge of natural hazards', 'Pre-release material', 'Decision making', 'Case studies', 'Exam skills'],
+    },
     starters: [
-      "Help me learn the continents",
+      "Help me with geography homework",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["climate change", "volcanoes", "rivers", "population"],
   },
   history: {
     name: 'History',
-    coach: 'Coach Clio',
+    sensei: 'Sensei Chronos',
     emoji: '🏛️',
     icon: Landmark,
+    years: {
+      7: ['Norman Conquest', 'Medieval England', 'The Black Death', 'Magna Carta', 'The Crusades', 'Medieval monarchy'],
+      8: ['The Tudors', 'English Civil War', 'The Slave Trade', 'Industrial Revolution', 'British Empire', 'Victorian Britain'],
+      9: ['World War I', 'Rise of dictators', 'World War II', 'The Holocaust', 'Cold War', 'Civil Rights'],
+      10: ['Medicine through time', 'Crime & punishment', 'Weimar & Nazi Germany', 'Elizabeth I', 'The American West', 'Source analysis'],
+      11: ['Superpower relations', 'British depth study', 'Historic environment', 'Interpretation skills', 'Essay writing', 'Exam technique'],
+    },
     starters: [
-      "Tell me about ancient civilizations",
+      "Help me understand a historical event",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["the Tudors", "World War II", "the Industrial Revolution", "the Roman Empire"],
   },
   french: {
     name: 'French',
-    coach: 'Coach Amélie',
+    sensei: 'Sensei Lumière',
     emoji: '🇫🇷',
     icon: Languages,
+    years: {
+      7: ['Greetings & introductions', 'Numbers & dates', 'Family & pets', 'School subjects', 'Hobbies', 'Food & drink'],
+      8: ['Daily routine', 'House & home', 'Town & directions', 'Clothes & shopping', 'Weather', 'Holidays'],
+      9: ['Past tense (passé composé)', 'Future tense', 'Opinions & reasons', 'Technology', 'Health & fitness', 'Environment'],
+      10: ['Complex opinions', 'Imperfect tense', 'Social issues', 'Work experience', 'Education systems', 'Speaking practice'],
+      11: ['All tenses revision', 'Writing skills', 'Listening strategies', 'Reading comprehension', 'Translation', 'Exam preparation'],
+    },
     starters: [
       "Help me with French vocabulary",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["past tense", "food vocabulary", "asking questions", "numbers"],
   },
   spanish: {
     name: 'Spanish',
-    coach: 'Coach Diego',
+    sensei: 'Sensei Sol',
     emoji: '🇪🇸',
     icon: Languages,
+    years: {
+      7: ['Greetings & introductions', 'Numbers & dates', 'Family & pets', 'School life', 'Free time', 'Food & mealtimes'],
+      8: ['Daily routine', 'House & rooms', 'Town & places', 'Clothes & fashion', 'Weather & seasons', 'Holidays'],
+      9: ['Preterite tense', 'Future plans', 'Giving opinions', 'Technology & media', 'Health & lifestyle', 'Environment'],
+      10: ['Complex structures', 'Imperfect tense', 'Social issues', 'World of work', 'Travel & tourism', 'Speaking skills'],
+      11: ['All tenses revision', 'Writing coursework', 'Listening practice', 'Reading strategies', 'Translation skills', 'Final revision'],
+    },
     starters: [
       "Help me with Spanish vocabulary",
       "📝 Review my marked homework",
-      "🎓 Teach me about...",
+      "🎓 Teach me a topic...",
     ],
-    lessonTopics: ["past tense", "food vocabulary", "asking questions", "numbers"],
   },
 };
 
@@ -95,9 +138,10 @@ function ChatRoom() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentChild } = useAuth();
-  const year = currentChild?.year_group || searchParams.get('year') || '9';
+  const year = parseInt(currentChild?.year_group || searchParams.get('year') || '9');
 
-  const config = subjectConfig[subject] || subjectConfig.maths;
+  const config = curriculumTopics[subject] || curriculumTopics.maths;
+  const yearTopics = config.years[year] || config.years[9];
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -106,6 +150,7 @@ function ChatRoom() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [showLessonPicker, setShowLessonPicker] = useState(false);
+  const [showCurriculum, setShowCurriculum] = useState(false);
   const [customTopic, setCustomTopic] = useState('');
 
   const messagesEndRef = useRef(null);
@@ -123,13 +168,11 @@ function ChatRoom() {
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('Image is too large. Please choose an image under 5MB.');
         return;
       }
 
-      // Check file type
       if (!file.type.startsWith('image/')) {
         alert('Please select an image file.');
         return;
@@ -137,7 +180,6 @@ function ChatRoom() {
 
       setSelectedImage(file);
 
-      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
@@ -158,7 +200,6 @@ function ChatRoom() {
     const text = messageText || input.trim();
     if ((!text && !selectedImage) || isLoading) return;
 
-    // Create user message with optional image
     const userMessage = {
       role: 'user',
       content: text || 'Can you help me with this?',
@@ -168,7 +209,6 @@ function ChatRoom() {
     setInput('');
     setIsLoading(true);
 
-    // Prepare image data for API
     let imageData = null;
     if (selectedImage) {
       const reader = new FileReader();
@@ -184,7 +224,6 @@ function ChatRoom() {
       });
     }
 
-    // Clear image after capturing data
     clearImage();
 
     try {
@@ -247,7 +286,7 @@ function ChatRoom() {
           <ArrowLeft size={24} />
         </button>
         <div className="chat-header-info">
-          <h1>{config.emoji} {config.coach}</h1>
+          <h1>{config.emoji} {config.sensei}</h1>
           <p>Year {year} • {config.name}</p>
         </div>
       </header>
@@ -258,14 +297,43 @@ function ChatRoom() {
             <div className={`welcome-avatar ${subject}`}>
               {config.emoji}
             </div>
-            <h2>Hi there! I'm {config.coach}!</h2>
+            <h2>Hey! I'm {config.sensei}!</h2>
             <p>
-              I'm here to help you learn - not just give you answers!
-              Tell me what you're working on and we'll figure it out together. 🌟
+              I'm your {config.name} guide — here to help you learn, not just give answers!
+              Tell me what you're working on and we'll conquer it together! 💪
             </p>
             <p className="image-hint">
-              📷 Share photos of your textbook, worksheet, or marked homework for help!
+              📷 Upload photos of homework, textbooks, or worksheets for help!
             </p>
+
+            {/* Curriculum Topics Section */}
+            <button
+              className="curriculum-toggle"
+              onClick={() => setShowCurriculum(!showCurriculum)}
+            >
+              📚 Year {year} Curriculum Topics
+              {showCurriculum ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+
+            {showCurriculum && (
+              <div className="curriculum-topics">
+                <div className="topic-chips">
+                  {yearTopics.map((topic, idx) => (
+                    <button
+                      key={idx}
+                      className="curriculum-chip"
+                      onClick={() => {
+                        sendMessage(`🎓 Please teach me about ${topic}`);
+                        setShowCurriculum(false);
+                      }}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {!showLessonPicker ? (
               <div className="starter-questions">
                 {config.starters.map((starter, idx) => (
@@ -273,7 +341,7 @@ function ChatRoom() {
                     key={idx}
                     className="starter-btn"
                     onClick={() => {
-                      if (starter.includes('Teach me about')) {
+                      if (starter.includes('Teach me')) {
                         setShowLessonPicker(true);
                       } else {
                         sendMessage(starter);
@@ -286,9 +354,9 @@ function ChatRoom() {
               </div>
             ) : (
               <div className="lesson-picker">
-                <h3>What would you like to learn about?</h3>
+                <h3>What would you like to learn?</h3>
                 <div className="lesson-topics">
-                  {config.lessonTopics.map((topic, idx) => (
+                  {yearTopics.slice(0, 6).map((topic, idx) => (
                     <button
                       key={idx}
                       className="topic-btn"
@@ -304,7 +372,7 @@ function ChatRoom() {
                 <div className="custom-topic">
                   <input
                     type="text"
-                    placeholder="Or type your own topic..."
+                    placeholder="Or type any topic..."
                     value={customTopic}
                     onChange={(e) => setCustomTopic(e.target.value)}
                     onKeyDown={(e) => {
@@ -326,14 +394,14 @@ function ChatRoom() {
                     }}
                     disabled={!customTopic.trim()}
                   >
-                    Start Lesson
+                    Go!
                   </button>
                 </div>
                 <button
                   className="back-link"
                   onClick={() => setShowLessonPicker(false)}
                 >
-                  ← Back to options
+                  ← Back
                 </button>
               </div>
             )}
@@ -400,7 +468,7 @@ function ChatRoom() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={selectedImage ? "Add a message about the image..." : "Type your question here..."}
+            placeholder={selectedImage ? "Add a message about the image..." : "Ask me anything..."}
             rows={1}
             disabled={isLoading}
           />
