@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
 
 // UK National Curriculum topics by subject and year
@@ -414,7 +415,9 @@ function ChatRoom() {
                   <img src={msg.image} alt="Uploaded content" />
                 </div>
               )}
-              {msg.content}
+              <div className="message-content">
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              </div>
             </div>
           ))
         )}
