@@ -34,7 +34,7 @@ if (process.env.NODE_ENV === 'production') {
 db.initializeDatabase().catch(console.error);
 
 // In-memory session cache (for active chat sessions)
-const sessionCache = new Map();
+const sessions = new Map();
 
 // Cheat detection patterns
 const CHEAT_PATTERNS = [
