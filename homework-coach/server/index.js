@@ -335,11 +335,40 @@ app.post('/api/chat', async (req, res) => {
       message.toLowerCase().includes('feedback from')
     );
 
-    // Build appropriate context for images
-    let imageContext = '';
-    if (image) {
-      if (isHomeworkReview) {
-        imageContext = `\n\nIMPORTANT: The student has shared their MARKED HOMEWORK for review. This is work that has already been marked by their teacher.
+    // Check if this is a lesson request
+    const isLessonRequest = message && (
+      message.toLowerCase().includes('teach me a lesson about') ||
+      message.toLowerCase().includes('teach me about') ||
+      message.toLowerCase().includes('give me a lesson on') ||
+      message.toLowerCase().includes('explain everything about') ||
+      message.toLowerCase().includes('i want to learn about')
+    );
+
+    // Build appropriate context based on request type
+    let specialContext = '';
+
+    if (isLessonRequest) {
+      specialContext = `\n\nIMPORTANT: The student has requested a STRUCTURED LESSON on a topic. This is different from answering a question - they want to learn the topic from scratch.
+
+Please deliver a mini-lesson that:
+1. **Starts with the basics** - Assume they know nothing about this specific topic
+2. **Builds up step by step** - Introduce concepts in logical order
+3. **Uses clear examples** - Relatable, age-appropriate examples for a UK student
+4. **Checks understanding** - After explaining a concept, ask a quick question to check they're following
+5. **Keeps it engaging** - Use enthusiasm, interesting facts, and varied explanations
+6. **Ends with a summary** - Recap the key points they've learned
+7. **Suggests next steps** - What they could explore next or practice
+
+Structure your lesson like this:
+- 📚 Introduction: "Today we're going to learn about..."
+- 🎯 Key concepts (2-3 main ideas)
+- 💡 Examples and explanations
+- ❓ Check-in question
+- ✨ Summary and next steps
+
+Keep the lesson focused and appropriately sized for their year level. Be encouraging and make learning feel exciting!`;
+    } else if (image && isHomeworkReview) {
+      specialContext = `\n\nIMPORTANT: The student has shared their MARKED HOMEWORK for review. This is work that has already been marked by their teacher.
 
 Your role is to help them LEARN FROM THEIR MISTAKES. Please:
 1. First, acknowledge what they did well - be encouraging about correct answers
@@ -353,16 +382,23 @@ Your role is to help them LEARN FROM THEIR MISTAKES. Please:
 6. End with encouragement and a clear "next step" they can work on
 
 Remember: The goal is to help them understand their mistakes so they can do better next time. Be supportive - getting homework back can feel disappointing!`;
-      } else {
-        imageContext = '\n\nThe student has shared an image. Please look at the image carefully and help them understand the content. Remember to use the Socratic method - guide them with questions rather than giving direct answers.';
-      }
+    } else if (image) {
+      specialContext = '\n\nThe student has shared an image. Please look at the image carefully and help them understand the content. Remember to use the Socratic method - guide them with questions rather than giving direct answers.';
     }
 
-    // Call Claude API (use more tokens for homework reviews as they need detailed feedback)
+    // Determine max tokens based on request type
+    let maxTokens = 500;
+    if (isLessonRequest) {
+      maxTokens = 1000; // Lessons need more space for structured content
+    } else if (isHomeworkReview) {
+      maxTokens = 800;
+    }
+
+    // Call Claude API
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: isHomeworkReview ? 800 : 500,
-      system: systemPrompt + yearContext + imageContext,
+      max_tokens: maxTokens,
+      system: systemPrompt + yearContext + specialContext,
       messages: messagesForClaude,
     });
 

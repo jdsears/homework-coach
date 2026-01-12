@@ -10,9 +10,10 @@ const subjectConfig = {
     icon: Calculator,
     starters: [
       "I need help with fractions",
-      "Can you help me with word problems?",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["algebra", "percentages", "Pythagoras", "ratios"],
   },
   english: {
     name: 'English',
@@ -21,9 +22,10 @@ const subjectConfig = {
     icon: BookOpen,
     starters: [
       "I need to write an essay",
-      "Can you help me understand this text?",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["essay structure", "analysing poetry", "persuasive writing", "Shakespeare"],
   },
   science: {
     name: 'Science',
@@ -32,9 +34,10 @@ const subjectConfig = {
     icon: FlaskConical,
     starters: [
       "How does photosynthesis work?",
-      "I have a science project question",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["atoms", "electricity", "the human body", "chemical reactions"],
   },
   geography: {
     name: 'Geography',
@@ -43,9 +46,10 @@ const subjectConfig = {
     icon: Globe,
     starters: [
       "Help me learn the continents",
-      "I need to learn about a country for school",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["climate change", "volcanoes", "rivers", "population"],
   },
   history: {
     name: 'History',
@@ -54,9 +58,10 @@ const subjectConfig = {
     icon: Landmark,
     starters: [
       "Tell me about ancient civilizations",
-      "I'm learning about a historical figure",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["the Tudors", "World War II", "the Industrial Revolution", "the Roman Empire"],
   },
   french: {
     name: 'French',
@@ -64,10 +69,11 @@ const subjectConfig = {
     emoji: '🇫🇷',
     icon: Languages,
     starters: [
-      "How do I introduce myself in French?",
       "Help me with French vocabulary",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["past tense", "food vocabulary", "asking questions", "numbers"],
   },
   spanish: {
     name: 'Spanish',
@@ -75,10 +81,11 @@ const subjectConfig = {
     emoji: '🇪🇸',
     icon: Languages,
     starters: [
-      "How do I say hello in Spanish?",
       "Help me with Spanish vocabulary",
       "📝 Review my marked homework",
+      "🎓 Teach me about...",
     ],
+    lessonTopics: ["past tense", "food vocabulary", "asking questions", "numbers"],
   },
 };
 
@@ -96,6 +103,8 @@ function ChatRoom() {
   const [sessionId, setSessionId] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [showLessonPicker, setShowLessonPicker] = useState(false);
+  const [customTopic, setCustomTopic] = useState('');
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -251,17 +260,77 @@ function ChatRoom() {
             <p className="image-hint">
               📷 Share photos of your textbook, worksheet, or marked homework for help!
             </p>
-            <div className="starter-questions">
-              {config.starters.map((starter, idx) => (
+            {!showLessonPicker ? (
+              <div className="starter-questions">
+                {config.starters.map((starter, idx) => (
+                  <button
+                    key={idx}
+                    className="starter-btn"
+                    onClick={() => {
+                      if (starter.includes('Teach me about')) {
+                        setShowLessonPicker(true);
+                      } else {
+                        sendMessage(starter);
+                      }
+                    }}
+                  >
+                    {starter}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="lesson-picker">
+                <h3>What would you like to learn about?</h3>
+                <div className="lesson-topics">
+                  {config.lessonTopics.map((topic, idx) => (
+                    <button
+                      key={idx}
+                      className="topic-btn"
+                      onClick={() => {
+                        sendMessage(`🎓 Please teach me a lesson about ${topic}`);
+                        setShowLessonPicker(false);
+                      }}
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+                <div className="custom-topic">
+                  <input
+                    type="text"
+                    placeholder="Or type your own topic..."
+                    value={customTopic}
+                    onChange={(e) => setCustomTopic(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customTopic.trim()) {
+                        sendMessage(`🎓 Please teach me a lesson about ${customTopic.trim()}`);
+                        setCustomTopic('');
+                        setShowLessonPicker(false);
+                      }
+                    }}
+                  />
+                  <button
+                    className="topic-submit-btn"
+                    onClick={() => {
+                      if (customTopic.trim()) {
+                        sendMessage(`🎓 Please teach me a lesson about ${customTopic.trim()}`);
+                        setCustomTopic('');
+                        setShowLessonPicker(false);
+                      }
+                    }}
+                    disabled={!customTopic.trim()}
+                  >
+                    Start Lesson
+                  </button>
+                </div>
                 <button
-                  key={idx}
-                  className="starter-btn"
-                  onClick={() => sendMessage(starter)}
+                  className="back-link"
+                  onClick={() => setShowLessonPicker(false)}
                 >
-                  {starter}
+                  ← Back to options
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           messages.map((msg, idx) => (

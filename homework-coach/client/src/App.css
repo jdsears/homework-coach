@@ -574,6 +574,97 @@ h2 {
   background: #f8fafc;
 }
 
+/* Lesson picker */
+.lesson-picker {
+  text-align: center;
+}
+
+.lesson-picker h3 {
+  color: var(--color-primary);
+  margin-bottom: var(--space-md);
+  font-size: 1.1rem;
+}
+
+.lesson-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+.topic-btn {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
+  color: white;
+  border: none;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-full);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.topic-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.custom-topic {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.custom-topic input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+}
+
+.custom-topic input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.topic-submit-btn {
+  background: var(--color-success);
+  color: white;
+  border: none;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.topic-submit-btn:hover:not(:disabled) {
+  background: #059669;
+}
+
+.topic-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.back-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.back-link:hover {
+  color: var(--color-primary);
+}
+
 /* ============================================
    PRACTICE MODE
    ============================================ */
