@@ -11,9 +11,9 @@
   --color-success: #34d399;
   --color-warning: #fb923c;
   
-  /* Subject colors */
-  --color-math: #3b82f6;
-  --color-reading: #8b5cf6;
+  /* Subject colours */
+  --color-maths: #3b82f6;
+  --color-english: #8b5cf6;
   --color-science: #10b981;
   --color-geography: #f59e0b;
   --color-history: #ef4444;
@@ -198,8 +198,8 @@ h2 {
   height: 4px;
 }
 
-.subject-card.math::before { background: var(--color-math); }
-.subject-card.reading::before { background: var(--color-reading); }
+.subject-card.maths::before { background: var(--color-maths); }
+.subject-card.english::before { background: var(--color-english); }
 .subject-card.science::before { background: var(--color-science); }
 .subject-card.geography::before { background: var(--color-geography); }
 .subject-card.history::before { background: var(--color-history); }
@@ -225,8 +225,8 @@ h2 {
   flex-shrink: 0;
 }
 
-.subject-card.math .subject-icon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
-.subject-card.reading .subject-icon { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.subject-card.maths .subject-icon { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.subject-card.english .subject-icon { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
 .subject-card.science .subject-icon { background: linear-gradient(135deg, #10b981, #059669); }
 .subject-card.geography .subject-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .subject-card.history .subject-icon { background: linear-gradient(135deg, #ef4444, #dc2626); }
@@ -449,8 +449,8 @@ h2 {
   font-size: 2.5rem;
 }
 
-.welcome-avatar.math { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
-.welcome-avatar.reading { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+.welcome-avatar.maths { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+.welcome-avatar.english { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
 .welcome-avatar.science { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
 .welcome-avatar.geography { background: linear-gradient(135deg, #fef3c7, #fde68a); }
 .welcome-avatar.history { background: linear-gradient(135deg, #fee2e2, #fecaca); }

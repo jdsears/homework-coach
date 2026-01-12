@@ -4,16 +4,16 @@ import { Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from '
 
 const subjects = [
   {
-    id: 'math',
-    name: 'Math',
+    id: 'maths',
+    name: 'Maths',
     description: 'Numbers, fractions, algebra & more',
     coach: 'Coach Mathilda 🧮',
     icon: Calculator,
   },
   {
-    id: 'reading',
-    name: 'Reading & Writing',
-    description: 'Stories, essays & vocabulary',
+    id: 'english',
+    name: 'English',
+    description: 'Reading, writing & vocabulary',
     coach: 'Coach Riley 📖',
     icon: BookOpen,
   },
@@ -54,10 +54,10 @@ const subjects = [
   },
 ];
 
-const grades = ['3', '4', '5', '6', '7', '8'];
+const years = ['7', '8', '9', '10', '11'];
 
 function SubjectSelect() {
-  const [selectedGrade, setSelectedGrade] = useState('5');
+  const [selectedYear, setSelectedYear] = useState('9');
 
   return (
     <div className="subject-select">
@@ -68,15 +68,15 @@ function SubjectSelect() {
       </header>
 
       <div className="grade-selector">
-        <label>What grade are you in?</label>
+        <label>What year are you in?</label>
         <div className="grade-buttons">
-          {grades.map(grade => (
+          {years.map(year => (
             <button
-              key={grade}
-              className={`grade-btn ${selectedGrade === grade ? 'active' : ''}`}
-              onClick={() => setSelectedGrade(grade)}
+              key={year}
+              className={`grade-btn ${selectedYear === year ? 'active' : ''}`}
+              onClick={() => setSelectedYear(year)}
             >
-              {grade}th
+              Year {year}
             </button>
           ))}
         </div>
@@ -86,7 +86,7 @@ function SubjectSelect() {
         {subjects.map(subject => (
           <Link
             key={subject.id}
-            to={`/chat/${subject.id}?grade=${selectedGrade}`}
+            to={`/chat/${subject.id}?year=${selectedYear}`}
             className={`subject-card ${subject.id}`}
           >
             <div className="subject-icon">

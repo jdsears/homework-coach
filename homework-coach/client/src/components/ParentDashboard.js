@@ -58,12 +58,12 @@ function ParentDashboard() {
           <div className="stat-label">Messages</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data?.subjectBreakdown?.math || 0}</div>
-          <div className="stat-label">Math</div>
+          <div className="stat-value">{data?.subjectBreakdown?.maths || 0}</div>
+          <div className="stat-label">Maths</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data?.subjectBreakdown?.reading || 0}</div>
-          <div className="stat-label">Reading</div>
+          <div className="stat-value">{data?.subjectBreakdown?.english || 0}</div>
+          <div className="stat-label">English</div>
         </div>
       </div>
 

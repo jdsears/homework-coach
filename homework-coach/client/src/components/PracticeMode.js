@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
 
 function PracticeMode() {
-  const [subject, setSubject] = useState('math');
-  const [grade, setGrade] = useState('5');
+  const [subject, setSubject] = useState('maths');
+  const [year, setYear] = useState('9');
   const [topic, setTopic] = useState('');
   const [problems, setProblems] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -14,7 +14,7 @@ function PracticeMode() {
       const response = await fetch('/api/practice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, grade, topic: topic || subject }),
+        body: JSON.stringify({ subject, year, topic: topic || subject }),
       });
       const data = await response.json();
       setProblems(data.problems);
@@ -39,8 +39,8 @@ function PracticeMode() {
           <div>
             <label>Subject</label>
             <select value={subject} onChange={(e) => setSubject(e.target.value)}>
-              <option value="math">Math</option>
-              <option value="reading">Reading & Writing</option>
+              <option value="maths">Maths</option>
+              <option value="english">English</option>
               <option value="science">Science</option>
               <option value="geography">Geography</option>
               <option value="history">History</option>
@@ -50,14 +50,13 @@ function PracticeMode() {
           </div>
 
           <div>
-            <label>Grade</label>
-            <select value={grade} onChange={(e) => setGrade(e.target.value)}>
-              <option value="3">3rd Grade</option>
-              <option value="4">4th Grade</option>
-              <option value="5">5th Grade</option>
-              <option value="6">6th Grade</option>
-              <option value="7">7th Grade</option>
-              <option value="8">8th Grade</option>
+            <label>Year</label>
+            <select value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="7">Year 7</option>
+              <option value="8">Year 8</option>
+              <option value="9">Year 9</option>
+              <option value="10">Year 10</option>
+              <option value="11">Year 11</option>
             </select>
           </div>
 

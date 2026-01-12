@@ -3,25 +3,25 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
 
 const subjectConfig = {
-  math: {
-    name: 'Math',
+  maths: {
+    name: 'Maths',
     coach: 'Coach Mathilda',
     emoji: '🧮',
     icon: Calculator,
     starters: [
       "I need help with fractions",
       "Can you help me with word problems?",
-      "I'm stuck on my math homework",
+      "I'm stuck on my maths homework",
     ],
   },
-  reading: {
-    name: 'Reading & Writing',
+  english: {
+    name: 'English',
     coach: 'Coach Riley',
     emoji: '📖',
     icon: BookOpen,
     starters: [
       "I need to write an essay",
-      "Can you help me understand this story?",
+      "Can you help me understand this text?",
       "I'm learning new vocabulary words",
     ],
   },
@@ -86,9 +86,9 @@ function ChatRoom() {
   const { subject } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const grade = searchParams.get('grade') || '5';
+  const year = searchParams.get('year') || '9';
   
-  const config = subjectConfig[subject] || subjectConfig.math;
+  const config = subjectConfig[subject] || subjectConfig.maths;
   
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -123,7 +123,7 @@ function ChatRoom() {
           sessionId,
           message: text,
           subject,
-          grade,
+          year,
         }),
       });
 
@@ -171,7 +171,7 @@ function ChatRoom() {
         </button>
         <div className="chat-header-info">
           <h1>{config.emoji} {config.coach}</h1>
-          <p>Grade {grade} • {config.name}</p>
+          <p>Year {year} • {config.name}</p>
         </div>
       </header>
 
