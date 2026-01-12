@@ -1,23 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, AlertCircle, Heart, BookOpen } from 'lucide-react';
+import { ArrowLeft, TrendingUp, AlertCircle, Heart, BookOpen, Trophy, Target } from 'lucide-react';
 
 function ParentDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [quizData, setQuizData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchSummary();
+    fetchAllData();
   }, []);
 
-  const fetchSummary = async () => {
+  const fetchAllData = async () => {
     try {
-      const response = await fetch('/api/parent/summary');
-      const summary = await response.json();
+      const [summaryRes, quizRes] = await Promise.all([
+        fetch('/api/parent/summary'),
+        fetch('/api/parent/quiz-summary')
+      ]);
+      const summary = await summaryRes.json();
+      const quiz = await quizRes.json();
       setData(summary);
+      setQuizData(quiz);
     } catch (error) {
-      console.error('Error fetching summary:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +89,70 @@ function ParentDashboard() {
           <p style={{ color: '#64748b' }}>No activity this week yet. Encourage your child to start a session!</p>
         )}
       </div>
+
+      {quizData?.totalQuizzes > 0 && (
+        <div className="section-card">
+          <h2><Trophy size={20} /> Quiz Performance</h2>
+          <div className="quiz-stats">
+            <div className="quiz-stat-row">
+              <span>Total Quizzes Taken:</span>
+              <strong>{quizData.totalQuizzes}</strong>
+            </div>
+            <div className="quiz-stat-row">
+              <span>Average Score:</span>
+              <strong className={quizData.averageScore >= 60 ? 'good-score' : 'needs-work'}>
+                {quizData.averageScore}%
+              </strong>
+            </div>
+            {quizData.bestSubject && (
+              <div className="quiz-stat-row">
+                <span>Strongest Subject:</span>
+                <strong style={{ textTransform: 'capitalize', color: '#10b981' }}>
+                  {quizData.bestSubject}
+                </strong>
+              </div>
+            )}
+          </div>
+
+          {quizData.recentResults?.length > 0 && (
+            <div className="recent-quizzes">
+              <h3 style={{ fontSize: '0.95rem', marginTop: '16px', marginBottom: '12px' }}>Recent Quizzes</h3>
+              {quizData.recentResults.slice(0, 5).map((result, idx) => (
+                <div key={idx} className={`quiz-result-item ${result.percentage >= 60 ? 'passed' : 'needs-review'}`}>
+                  <div className="quiz-result-info">
+                    <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{result.subject}</span>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}> - {result.topic}</span>
+                  </div>
+                  <div className="quiz-result-score">
+                    {result.score}/{result.total} ({result.percentage}%)
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {quizData?.weakAreas?.length > 0 && (
+        <div className="section-card">
+          <h2><Target size={20} /> Areas to Focus On</h2>
+          <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '12px' }}>
+            Based on quiz results, these topics need more practice:
+          </p>
+          <div className="weak-areas-list">
+            {quizData.weakAreas.map((area, idx) => (
+              <div key={idx} className="weak-area-item">
+                <div className="weak-area-subject">{area.subject}</div>
+                <div className="weak-area-topic">{area.topic}</div>
+                <div className="weak-area-score">{area.avgScore}% avg</div>
+              </div>
+            ))}
+          </div>
+          <div className="weak-areas-tip">
+            <p>💡 Encourage your child to take a lesson on these topics before retrying the quiz!</p>
+          </div>
+        </div>
+      )}
 
       {totalStruggles > 0 && (
         <div className="section-card">

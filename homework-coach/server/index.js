@@ -460,6 +460,138 @@ Make them progressively harder. Keep language simple and age-appropriate. Use UK
   }
 });
 
+// In-memory quiz results storage
+const quizResults = [];
+
+// Generate a quiz
+app.post('/api/quiz', async (req, res) => {
+  try {
+    const { subject, topic, year } = req.body;
+
+    const prompt = `Generate a quiz with exactly 5 multiple choice questions for a Year ${year || '9'} UK secondary school student about "${topic}" in ${subject}.
+
+Return ONLY a valid JSON object in this exact format (no markdown, no explanation):
+{
+  "questions": [
+    {
+      "question": "The question text here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0
+    }
+  ]
+}
+
+Rules:
+- Each question must have exactly 4 options
+- correctAnswer is the index (0-3) of the correct option
+- Make questions progressively harder
+- Use UK spelling and context
+- Questions should be clear and age-appropriate
+- Include a mix of recall and understanding questions`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    // Parse the JSON response
+    let quiz;
+    try {
+      const jsonText = response.content[0].text.trim();
+      // Remove any markdown code blocks if present
+      const cleanJson = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      quiz = JSON.parse(cleanJson);
+    } catch (parseError) {
+      console.error('Failed to parse quiz JSON:', parseError);
+      // Return a fallback quiz structure
+      quiz = {
+        questions: [
+          {
+            question: "Quiz generation encountered an issue. Please try again.",
+            options: ["Try again", "Select different topic", "Ask your coach", "Skip for now"],
+            correctAnswer: 0
+          }
+        ]
+      };
+    }
+
+    res.json({ quiz });
+
+  } catch (error) {
+    console.error('Quiz generation error:', error);
+    res.status(500).json({ error: 'Could not generate quiz' });
+  }
+});
+
+// Save quiz result
+app.post('/api/quiz/result', (req, res) => {
+  try {
+    const { subject, topic, year, score, total, timestamp } = req.body;
+
+    const result = {
+      id: uuidv4(),
+      subject,
+      topic,
+      year,
+      score,
+      total,
+      percentage: Math.round((score / total) * 100),
+      timestamp: timestamp || new Date().toISOString(),
+    };
+
+    quizResults.push(result);
+
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('Error saving quiz result:', error);
+    res.status(500).json({ error: 'Could not save quiz result' });
+  }
+});
+
+// Get quiz results for parent dashboard
+app.get('/api/quiz/results', (req, res) => {
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const recentResults = quizResults.filter(r =>
+    new Date(r.timestamp) > weekAgo
+  );
+
+  // Calculate stats
+  const subjectStats = {};
+  recentResults.forEach(r => {
+    if (!subjectStats[r.subject]) {
+      subjectStats[r.subject] = { quizzes: 0, totalScore: 0, topics: {} };
+    }
+    subjectStats[r.subject].quizzes++;
+    subjectStats[r.subject].totalScore += r.percentage;
+
+    if (!subjectStats[r.subject].topics[r.topic]) {
+      subjectStats[r.subject].topics[r.topic] = [];
+    }
+    subjectStats[r.subject].topics[r.topic].push(r.percentage);
+  });
+
+  // Find weak areas (topics with average score < 60%)
+  const weakAreas = [];
+  Object.entries(subjectStats).forEach(([subject, stats]) => {
+    Object.entries(stats.topics).forEach(([topic, scores]) => {
+      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      if (avg < 60) {
+        weakAreas.push({ subject, topic, averageScore: Math.round(avg) });
+      }
+    });
+  });
+
+  res.json({
+    totalQuizzes: recentResults.length,
+    results: recentResults,
+    subjectStats,
+    weakAreas,
+  });
+});
+
 // Parent dashboard - get weekly summary
 app.get('/api/parent/summary', (req, res) => {
   const weekAgo = new Date();
@@ -489,6 +621,78 @@ app.get('/api/parent/summary', (req, res) => {
     subjectBreakdown: subjectTime,
     struggles: strugglesBySubject,
     encouragement: generateParentTip(strugglesBySubject),
+  });
+});
+
+// Parent dashboard - quiz summary
+app.get('/api/parent/quiz-summary', (req, res) => {
+  if (quizResults.length === 0) {
+    return res.json({
+      totalQuizzes: 0,
+      averageScore: 0,
+      bestSubject: null,
+      weakAreas: [],
+      recentResults: [],
+    });
+  }
+
+  // Calculate overall stats
+  const totalQuizzes = quizResults.length;
+  const totalPercentage = quizResults.reduce((sum, r) => sum + r.percentage, 0);
+  const averageScore = Math.round(totalPercentage / totalQuizzes);
+
+  // Find best subject (subject with highest average score)
+  const subjectScores = {};
+  quizResults.forEach(r => {
+    if (!subjectScores[r.subject]) {
+      subjectScores[r.subject] = { total: 0, count: 0 };
+    }
+    subjectScores[r.subject].total += r.percentage;
+    subjectScores[r.subject].count += 1;
+  });
+
+  let bestSubject = null;
+  let bestAvg = 0;
+  Object.entries(subjectScores).forEach(([subject, data]) => {
+    const avg = data.total / data.count;
+    if (avg > bestAvg) {
+      bestAvg = avg;
+      bestSubject = subject;
+    }
+  });
+
+  // Find weak areas (topics with avg score below 60%)
+  const topicScores = {};
+  quizResults.forEach(r => {
+    const key = `${r.subject}:${r.topic}`;
+    if (!topicScores[key]) {
+      topicScores[key] = { subject: r.subject, topic: r.topic, total: 0, count: 0 };
+    }
+    topicScores[key].total += r.percentage;
+    topicScores[key].count += 1;
+  });
+
+  const weakAreas = Object.values(topicScores)
+    .map(t => ({
+      subject: t.subject,
+      topic: t.topic,
+      avgScore: Math.round(t.total / t.count),
+    }))
+    .filter(t => t.avgScore < 60)
+    .sort((a, b) => a.avgScore - b.avgScore)
+    .slice(0, 5);
+
+  // Get recent results (most recent first)
+  const recentResults = [...quizResults]
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
+
+  res.json({
+    totalQuizzes,
+    averageScore,
+    bestSubject,
+    weakAreas,
+    recentResults,
   });
 });
 
