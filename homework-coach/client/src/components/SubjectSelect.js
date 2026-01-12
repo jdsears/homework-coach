@@ -7,50 +7,50 @@ const subjects = [
   {
     id: 'maths',
     name: 'Maths',
-    description: 'Numbers, fractions, algebra & more',
-    coach: 'Coach Mathilda 🧮',
+    description: 'Numbers, algebra & problem solving',
+    coach: 'Sensei Nova ⚡',
     icon: Calculator,
   },
   {
     id: 'english',
     name: 'English',
-    description: 'Reading, writing & vocabulary',
-    coach: 'Coach Riley 📖',
+    description: 'Master words & storytelling',
+    coach: 'Sensei Lyra 📖',
     icon: BookOpen,
   },
   {
     id: 'science',
     name: 'Science',
-    description: 'Discover how the world works',
-    coach: 'Coach Newton 🔬',
+    description: 'Unlock the secrets of the universe',
+    coach: 'Sensei Phoenix 🔬',
     icon: FlaskConical,
   },
   {
     id: 'geography',
     name: 'Geography',
-    description: 'Explore places around the world',
-    coach: 'Coach Atlas 🌍',
+    description: 'Explore epic lands & places',
+    coach: 'Sensei Terra 🌍',
     icon: Globe,
   },
   {
     id: 'history',
     name: 'History',
-    description: 'Stories from the past',
-    coach: 'Coach Clio 🏛️',
+    description: 'Epic tales from the past',
+    coach: 'Sensei Chronos 🏛️',
     icon: Landmark,
   },
   {
     id: 'french',
     name: 'French',
-    description: 'Bonjour! Learn to speak French',
-    coach: 'Coach Amélie 🇫🇷',
+    description: 'Bonjour! Unlock a new language',
+    coach: 'Sensei Lumière 🇫🇷',
     icon: Languages,
   },
   {
     id: 'spanish',
     name: 'Spanish',
-    description: '¡Hola! Learn to speak Spanish',
-    coach: 'Coach Diego 🇪🇸',
+    description: '¡Hola! Speak like a champion',
+    coach: 'Sensei Sol 🇪🇸',
     icon: Languages,
   },
 ];
@@ -62,9 +62,9 @@ function SubjectSelect() {
   return (
     <div className="subject-select">
       <header className="header">
-        <div className="mascot">🎓</div>
-        <h1>Hi, {currentChild?.name || 'there'}!</h1>
-        <p>Year {year} • What would you like to learn today?</p>
+        <div className="mascot">⚡</div>
+        <h1>Hey {currentChild?.name || 'Hero'}!</h1>
+        <p>Year {year} Champion • Choose Your Quest!</p>
       </header>
 
       <div className="subject-grid">

@@ -2,19 +2,24 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Settings, LogOut, User, Edit2, Trash2, Check, X } from 'lucide-react';
 
+// Anime-inspired avatar options
 const AVATARS = [
-  { id: 'astronaut', emoji: '🧑‍🚀' },
-  { id: 'scientist', emoji: '🧑‍🔬' },
-  { id: 'artist', emoji: '🧑‍🎨' },
-  { id: 'student', emoji: '🧑‍🎓' },
+  { id: 'ninja', emoji: '🥷' },
   { id: 'wizard', emoji: '🧙' },
   { id: 'superhero', emoji: '🦸' },
+  { id: 'dragon', emoji: '🐲' },
+  { id: 'phoenix', emoji: '🔥' },
+  { id: 'star', emoji: '⭐' },
+  { id: 'lightning', emoji: '⚡' },
+  { id: 'crystal', emoji: '💎' },
+  { id: 'wolf', emoji: '🐺' },
+  { id: 'fox', emoji: '🦊' },
+  { id: 'cat', emoji: '🐱' },
+  { id: 'panda', emoji: '🐼' },
+  { id: 'unicorn', emoji: '🦄' },
+  { id: 'rocket', emoji: '🚀' },
   { id: 'robot', emoji: '🤖' },
   { id: 'alien', emoji: '👽' },
-  { id: 'cat', emoji: '🐱' },
-  { id: 'dog', emoji: '🐶' },
-  { id: 'unicorn', emoji: '🦄' },
-  { id: 'dragon', emoji: '🐲' },
 ];
 
 function getAvatarEmoji(avatarId) {
@@ -31,7 +36,7 @@ function ProfileSelector() {
   // Add child form state
   const [newName, setNewName] = useState('');
   const [newYear, setNewYear] = useState(7);
-  const [newAvatar, setNewAvatar] = useState('student');
+  const [newAvatar, setNewAvatar] = useState('ninja');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,7 +49,7 @@ function ProfileSelector() {
       await addChild(newName, newYear, newAvatar);
       setNewName('');
       setNewYear(7);
-      setNewAvatar('student');
+      setNewAvatar('ninja');
       setShowAddChild(false);
     } catch (err) {
       setError(err.message);
@@ -87,7 +92,7 @@ function ProfileSelector() {
   const startEditing = (child) => {
     setNewName(child.name);
     setNewYear(child.year_group);
-    setNewAvatar(child.avatar || 'student');
+    setNewAvatar(child.avatar || 'ninja');
     setEditingChild(child);
     setShowAddChild(false);
   };
@@ -96,7 +101,7 @@ function ProfileSelector() {
     setEditingChild(null);
     setNewName('');
     setNewYear(7);
-    setNewAvatar('student');
+    setNewAvatar('ninja');
     setError('');
   };
 
@@ -127,7 +132,7 @@ function ProfileSelector() {
             {editingChild?.id === child.id ? (
               <form onSubmit={handleUpdateChild} className="profile-edit-form">
                 <div className="avatar-selector">
-                  {AVATARS.slice(0, 6).map(avatar => (
+                  {AVATARS.slice(0, 8).map(avatar => (
                     <button
                       key={avatar.id}
                       type="button"
@@ -187,7 +192,7 @@ function ProfileSelector() {
         {showAddChild ? (
           <form onSubmit={handleAddChild} className="add-child-form">
             <div className="avatar-selector">
-              {AVATARS.slice(0, 6).map(avatar => (
+              {AVATARS.slice(0, 8).map(avatar => (
                 <button
                   key={avatar.id}
                   type="button"

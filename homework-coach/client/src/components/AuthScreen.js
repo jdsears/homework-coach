@@ -33,11 +33,9 @@ function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-header">
-        <div className="auth-mascot">
-          <BookOpen size={48} />
-        </div>
-        <h1>Homework Coach</h1>
-        <p>Your friendly AI tutoring assistant</p>
+        <div className="auth-mascot">⚡</div>
+        <h1>Homework Hero</h1>
+        <p>Level up your learning powers!</p>
       </div>
 
       <div className="auth-card">
@@ -149,16 +147,16 @@ function AuthScreen() {
 
       <div className="auth-features">
         <div className="feature">
-          <span className="feature-icon">🎓</span>
-          <span>AI tutors using the Socratic method</span>
+          <span className="feature-icon">🥷</span>
+          <span>AI Senseis guide your learning quest</span>
         </div>
         <div className="feature">
-          <span className="feature-icon">👨‍👩‍👧‍👦</span>
-          <span>Track each child's progress</span>
+          <span className="feature-icon">⚔️</span>
+          <span>Battle quizzes & earn XP</span>
         </div>
         <div className="feature">
-          <span className="feature-icon">🇬🇧</span>
-          <span>Aligned with UK curriculum</span>
+          <span className="feature-icon">🏆</span>
+          <span>Track progress & level up!</span>
         </div>
       </div>
     </div>
