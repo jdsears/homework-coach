@@ -250,17 +250,17 @@ So, what part is giving you the most trouble? Let's start there! 🌟`;
 // Start or continue a tutoring session
 app.post('/api/chat', async (req, res) => {
   try {
-    const { sessionId, message, subject, year } = req.body;
+    const { sessionId, message, subject, year, image } = req.body;
 
-    if (!message || !subject) {
-      return res.status(400).json({ error: 'Message and subject are required' });
+    if ((!message && !image) || !subject) {
+      return res.status(400).json({ error: 'Message or image and subject are required' });
     }
 
-    // Check for cheat attempt
-    if (detectCheatAttempt(message)) {
+    // Check for cheat attempt (only check text messages)
+    if (message && detectCheatAttempt(message)) {
       // Log this for parent dashboard
       logStruggle(sessionId, subject, 'Tried to get direct answer', message);
-      
+
       return res.json({
         response: CHEAT_REDIRECT,
         sessionId: sessionId || uuidv4(),
@@ -282,22 +282,53 @@ app.post('/api/chat', async (req, res) => {
       sessions.set(session.id, session);
     }
 
-    // Add user message to history
-    session.messages.push({
+    // Build message content (with or without image)
+    let messageContent;
+    if (image) {
+      // Message with image - use content array format for Claude vision
+      messageContent = [
+        {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: image.type,
+            data: image.data,
+          },
+        },
+        {
+          type: 'text',
+          text: message || 'Can you help me understand this?',
+        },
+      ];
+    } else {
+      // Text-only message
+      messageContent = message;
+    }
+
+    // Add user message to history (store text only for session history to save memory)
+    const historyMessage = {
       role: 'user',
-      content: message,
-    });
+      content: image ? `[Image shared] ${message || 'Can you help me understand this?'}` : message,
+    };
+    session.messages.push(historyMessage);
+
+    // Prepare messages for Claude - use current message with image, history without images
+    const messagesForClaude = [
+      ...session.messages.slice(0, -1), // Previous messages (text only)
+      { role: 'user', content: messageContent }, // Current message (may include image)
+    ];
 
     // Prepare messages for Claude
     const systemPrompt = SYSTEM_PROMPTS[subject] || SYSTEM_PROMPTS.maths;
     const yearContext = year ? `\n\nThe student is in Year ${year}.` : '';
+    const imageContext = image ? '\n\nThe student has shared an image. Please look at the image carefully and help them understand the content. Remember to use the Socratic method - guide them with questions rather than giving direct answers.' : '';
 
     // Call Claude API
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 500,
-      system: systemPrompt + yearContext,
-      messages: session.messages,
+      system: systemPrompt + yearContext + imageContext,
+      messages: messagesForClaude,
     });
 
     const assistantMessage = response.content[0].text;
@@ -309,10 +340,10 @@ app.post('/api/chat', async (req, res) => {
     });
 
     // Analyze for struggles (simple heuristic)
-    if (message.toLowerCase().includes("don't understand") ||
+    if (message && (message.toLowerCase().includes("don't understand") ||
         message.toLowerCase().includes("confused") ||
         message.toLowerCase().includes("help") ||
-        message.toLowerCase().includes("stuck")) {
+        message.toLowerCase().includes("stuck"))) {
       logStruggle(sessionId || session.id, subject, 'Expressed confusion', message);
     }
 

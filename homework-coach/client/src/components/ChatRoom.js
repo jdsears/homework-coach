@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
+import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X } from 'lucide-react';
 
 const subjectConfig = {
   maths: {
@@ -87,16 +87,19 @@ function ChatRoom() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const year = searchParams.get('year') || '9';
-  
+
   const config = subjectConfig[subject] || subjectConfig.maths;
-  
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
-  
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,14 +109,72 @@ function ChatRoom() {
     scrollToBottom();
   }, [messages]);
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image is too large. Please choose an image under 5MB.');
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        return;
+      }
+
+      setSelectedImage(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const sendMessage = async (messageText) => {
     const text = messageText || input.trim();
-    if (!text || isLoading) return;
+    if ((!text && !selectedImage) || isLoading) return;
 
-    const userMessage = { role: 'user', content: text };
+    // Create user message with optional image
+    const userMessage = {
+      role: 'user',
+      content: text || 'Can you help me with this?',
+      image: imagePreview
+    };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Prepare image data for API
+    let imageData = null;
+    if (selectedImage) {
+      const reader = new FileReader();
+      imageData = await new Promise((resolve) => {
+        reader.onloadend = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve({
+            type: selectedImage.type,
+            data: base64
+          });
+        };
+        reader.readAsDataURL(selectedImage);
+      });
+    }
+
+    // Clear image after capturing data
+    clearImage();
 
     try {
       const response = await fetch('/api/chat', {
@@ -121,9 +182,10 @@ function ChatRoom() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          message: text,
+          message: text || 'Can you help me with this image?',
           subject,
           year,
+          image: imageData,
         }),
       });
 
@@ -137,7 +199,7 @@ function ChatRoom() {
         role: data.cheatDetected ? 'system' : 'assistant',
         content: data.response,
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
@@ -183,8 +245,11 @@ function ChatRoom() {
             </div>
             <h2>Hi there! I'm {config.coach}!</h2>
             <p>
-              I'm here to help you learn - not just give you answers! 
+              I'm here to help you learn - not just give you answers!
               Tell me what you're working on and we'll figure it out together. 🌟
+            </p>
+            <p className="image-hint">
+              📷 You can also share a photo of your textbook or worksheet!
             </p>
             <div className="starter-questions">
               {config.starters.map((starter, idx) => (
@@ -201,11 +266,16 @@ function ChatRoom() {
         ) : (
           messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
+              {msg.image && (
+                <div className="message-image">
+                  <img src={msg.image} alt="Uploaded content" />
+                </div>
+              )}
               {msg.content}
             </div>
           ))
         )}
-        
+
         {isLoading && (
           <div className="message assistant">
             <div className="typing-indicator">
@@ -215,26 +285,54 @@ function ChatRoom() {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
       <form className="chat-input-container" onSubmit={handleSubmit}>
+        {imagePreview && (
+          <div className="image-preview-container">
+            <img src={imagePreview} alt="Preview" className="image-preview" />
+            <button
+              type="button"
+              className="clear-image-btn"
+              onClick={clearImage}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
         <div className="chat-input-wrapper">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            accept="image/*"
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="image-upload-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+            title="Upload an image"
+          >
+            <Image size={20} />
+          </button>
           <textarea
             ref={inputRef}
             className="chat-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your question here..."
+            placeholder={selectedImage ? "Add a message about the image..." : "Type your question here..."}
             rows={1}
             disabled={isLoading}
           />
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="send-btn"
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && !selectedImage) || isLoading}
           >
             <Send size={20} />
           </button>
