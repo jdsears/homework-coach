@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const subjects = [
   {
@@ -54,39 +55,23 @@ const subjects = [
   },
 ];
 
-const years = ['7', '8', '9', '10', '11'];
-
 function SubjectSelect() {
-  const [selectedYear, setSelectedYear] = useState('9');
+  const { currentChild } = useAuth();
+  const year = currentChild?.year_group || 9;
 
   return (
     <div className="subject-select">
       <header className="header">
         <div className="mascot">🎓</div>
-        <h1>Homework Coach</h1>
-        <p>Let's learn something awesome today!</p>
+        <h1>Hi, {currentChild?.name || 'there'}!</h1>
+        <p>Year {year} • What would you like to learn today?</p>
       </header>
-
-      <div className="grade-selector">
-        <label>What year are you in?</label>
-        <div className="grade-buttons">
-          {years.map(year => (
-            <button
-              key={year}
-              className={`grade-btn ${selectedYear === year ? 'active' : ''}`}
-              onClick={() => setSelectedYear(year)}
-            >
-              Year {year}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="subject-grid">
         {subjects.map(subject => (
           <Link
             key={subject.id}
-            to={`/chat/${subject.id}?year=${selectedYear}`}
+            to={`/chat/${subject.id}?year=${year}`}
             className={`subject-card ${subject.id}`}
           >
             <div className="subject-icon">

@@ -1869,3 +1869,544 @@ h2 {
   margin: 0;
   font-size: 0.9rem;
 }
+
+/* ============================================
+   AUTH SCREEN
+   ============================================ */
+
+.auth-screen {
+  min-height: 100vh;
+  background: var(--bg-gradient);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-header {
+  text-align: center;
+  color: white;
+  margin-bottom: var(--space-xl);
+  padding-top: var(--space-xl);
+}
+
+.auth-mascot {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-md);
+}
+
+.auth-header h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 2rem;
+  margin-bottom: var(--space-xs);
+}
+
+.auth-header p {
+  opacity: 0.9;
+}
+
+.auth-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-tabs {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  background: #f1f5f9;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.auth-tab.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.auth-form {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.auth-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.form-group {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  padding: var(--space-md);
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.auth-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: var(--space-sm);
+}
+
+.auth-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.loading-dots span {
+  animation: loadingDots 1.4s infinite;
+}
+
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loadingDots {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid #e2e8f0;
+}
+
+.auth-footer p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.auth-footer button {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-footer button:hover {
+  text-decoration: underline;
+}
+
+.auth-features {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  width: 100%;
+  max-width: 400px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  background: rgba(255, 255, 255, 0.1);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  color: white;
+}
+
+.feature-icon {
+  font-size: 1.5rem;
+}
+
+/* ============================================
+   PROFILE SELECTOR
+   ============================================ */
+
+.profile-selector {
+  min-height: 100vh;
+  background: var(--bg-gradient);
+  padding: var(--space-lg);
+}
+
+.profile-header {
+  text-align: center;
+  color: white;
+  margin-bottom: var(--space-xl);
+  padding-top: var(--space-xl);
+  position: relative;
+}
+
+.profile-header h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.75rem;
+  margin-bottom: var(--space-xs);
+}
+
+.profile-header p {
+  opacity: 0.9;
+}
+
+.settings-btn {
+  position: absolute;
+  top: var(--space-lg);
+  right: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: white;
+  cursor: pointer;
+}
+
+.settings-dropdown {
+  position: absolute;
+  top: calc(var(--space-lg) + 44px);
+  right: 0;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  z-index: 10;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: none;
+  border: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+  color: #ef4444;
+  cursor: pointer;
+  width: 100%;
+}
+
+.logout-btn:hover {
+  background: #fee2e2;
+}
+
+.profile-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+  text-align: center;
+}
+
+.profiles-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.profile-card-wrapper {
+  position: relative;
+}
+
+.profile-card {
+  width: 100%;
+  background: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-md);
+}
+
+.profile-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-avatar {
+  font-size: 3rem;
+  margin-bottom: var(--space-sm);
+}
+
+.profile-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  margin-bottom: var(--space-xs);
+}
+
+.profile-year {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.profile-actions {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  display: flex;
+  gap: var(--space-xs);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.profile-card-wrapper:hover .profile-actions {
+  opacity: 1;
+}
+
+.profile-actions button {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-actions button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.profile-actions .delete-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.add-profile-card {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) var(--space-lg);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: white;
+}
+
+.add-profile-card:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.add-icon {
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-sm);
+}
+
+.add-text {
+  font-weight: 600;
+}
+
+.add-child-form,
+.profile-edit-form {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-md);
+  box-shadow: var(--shadow-md);
+}
+
+.avatar-selector {
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.avatar-option {
+  width: 40px;
+  height: 40px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: #f1f5f9;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.avatar-option:hover {
+  border-color: var(--color-primary-light);
+}
+
+.avatar-option.selected {
+  border-color: var(--color-primary);
+  background: #eef2ff;
+}
+
+.add-child-form input,
+.add-child-form select,
+.profile-edit-form input,
+.profile-edit-form select {
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+}
+
+.form-actions,
+.edit-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.save-btn {
+  flex: 1;
+  padding: var(--space-sm);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  padding: var(--space-sm);
+  background: #f1f5f9;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+}
+
+.profile-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  padding: var(--space-md);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: white;
+  font-size: 0.9rem;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Loading screen */
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-gradient);
+  color: white;
+}
+
+.loading-screen p {
+  margin-top: var(--space-md);
+}
+
+/* Profile switch button in nav */
+.profile-switch {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.profile-switch span {
+  font-size: 0.65rem;
+}
+
+/* Child filter in parent dashboard */
+.child-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: white;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.child-filter select {
+  flex: 1;
+  padding: var(--space-sm);
+  border: none;
+  background: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.child-filter select:focus {
+  outline: none;
+}

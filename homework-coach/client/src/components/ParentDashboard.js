@@ -1,22 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, AlertCircle, Heart, BookOpen, Trophy, Target } from 'lucide-react';
+import { ArrowLeft, TrendingUp, AlertCircle, Heart, BookOpen, Trophy, Target, Users } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 function ParentDashboard() {
   const navigate = useNavigate();
+  const { children: familyChildren, family } = useAuth();
   const [data, setData] = useState(null);
   const [quizData, setQuizData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedChildId, setSelectedChildId] = useState('all');
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [selectedChildId]);
 
   const fetchAllData = async () => {
+    setIsLoading(true);
     try {
+      const childParam = selectedChildId !== 'all' ? `?childId=${selectedChildId}` : '';
+      const headers = {
+        credentials: 'include',
+      };
+
       const [summaryRes, quizRes] = await Promise.all([
-        fetch('/api/parent/summary'),
-        fetch('/api/parent/quiz-summary')
+        fetch(`/api/parent/summary${childParam}`, { credentials: 'include' }),
+        fetch(`/api/parent/quiz-summary${childParam}`, { credentials: 'include' })
       ]);
       const summary = await summaryRes.json();
       const quiz = await quizRes.json();
@@ -45,6 +54,8 @@ function ParentDashboard() {
     ? Object.values(data.struggles).flat().length
     : 0;
 
+  const selectedChild = familyChildren?.find(c => c.id === parseInt(selectedChildId));
+
   return (
     <div className="parent-dashboard">
       <header className="parent-header">
@@ -53,6 +64,23 @@ function ParentDashboard() {
         </button>
         <h1>📊 Parent Dashboard</h1>
       </header>
+
+      {familyChildren?.length > 0 && (
+        <div className="child-filter">
+          <Users size={18} />
+          <select
+            value={selectedChildId}
+            onChange={(e) => setSelectedChildId(e.target.value)}
+          >
+            <option value="all">All Children</option>
+            {familyChildren.map(child => (
+              <option key={child.id} value={child.id}>
+                {child.name} (Year {child.year_group})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="stat-cards">
         <div className="stat-card">

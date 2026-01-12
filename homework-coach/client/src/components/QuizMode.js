@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const subjectTopics = {
   maths: ['fractions', 'algebra', 'percentages', 'Pythagoras', 'ratios', 'equations'],
@@ -14,9 +15,10 @@ const subjectTopics = {
 
 function QuizMode() {
   const navigate = useNavigate();
+  const { currentChild } = useAuth();
   const [subject, setSubject] = useState('maths');
   const [topic, setTopic] = useState('');
-  const [year, setYear] = useState('9');
+  const year = currentChild?.year_group || 9;
   const [quiz, setQuiz] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState([]);
@@ -32,7 +34,11 @@ function QuizMode() {
     try {
       const response = await fetch('/api/quiz', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentChild && { 'X-Child-Id': currentChild.id }),
+        },
+        credentials: 'include',
         body: JSON.stringify({ subject, topic, year }),
       });
       const data = await response.json();
@@ -79,7 +85,11 @@ function QuizMode() {
     try {
       await fetch('/api/quiz/result', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentChild && { 'X-Child-Id': currentChild.id }),
+        },
+        credentials: 'include',
         body: JSON.stringify({
           subject,
           topic,

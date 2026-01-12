@@ -1,9 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const Anthropic = require('@anthropic-ai/sdk');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+
+const db = require('./db');
+const auth = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,17 +18,23 @@ const anthropic = new Anthropic({
 });
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
+  credentials: true,
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
 
-// In-memory storage (use a database in production)
-const sessions = new Map();
-const parentData = new Map();
+// Initialize database on startup
+db.initializeDatabase().catch(console.error);
+
+// In-memory session cache (for active chat sessions)
+const sessionCache = new Map();
 
 // Cheat detection patterns
 const CHEAT_PATTERNS = [
@@ -247,8 +257,251 @@ So, what part is giving you the most trouble? Let's start there! 🌟`;
 
 // API Routes
 
+// ============================================
+// AUTHENTICATION ROUTES
+// ============================================
+
+// Sign up a new family account
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { email, password, familyName } = req.body;
+
+    if (!email || !password || !familyName) {
+      return res.status(400).json({ error: 'Email, password, and family name are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    // Check if email already exists
+    const existing = await db.query('SELECT id FROM families WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Hash password and create account
+    const passwordHash = await auth.hashPassword(password);
+    const result = await db.query(
+      'INSERT INTO families (email, password_hash, family_name) VALUES ($1, $2, $3) RETURNING id, email, family_name',
+      [email.toLowerCase(), passwordHash, familyName]
+    );
+
+    const family = result.rows[0];
+    const token = auth.generateToken({ familyId: family.id, email: family.email });
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.json({
+      family: {
+        id: family.id,
+        email: family.email,
+        familyName: family.family_name,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ error: 'Server error during signup' });
+  }
+});
+
+// Log in to existing account
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Find family
+    const result = await db.query(
+      'SELECT id, email, password_hash, family_name FROM families WHERE email = $1',
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const family = result.rows[0];
+    const isValid = await auth.comparePassword(password, family.password_hash);
+
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = auth.generateToken({ familyId: family.id, email: family.email });
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // Get children for this family
+    const childrenResult = await db.query(
+      'SELECT id, name, year_group, avatar FROM children WHERE family_id = $1 ORDER BY name',
+      [family.id]
+    );
+
+    res.json({
+      family: {
+        id: family.id,
+        email: family.email,
+        familyName: family.family_name,
+      },
+      children: childrenResult.rows,
+      token,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Server error during login' });
+  }
+});
+
+// Log out
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('token');
+  res.json({ success: true });
+});
+
+// Get current user info
+app.get('/api/auth/me', auth.requireAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, email, family_name FROM families WHERE id = $1',
+      [req.family.familyId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Family not found' });
+    }
+
+    const family = result.rows[0];
+    const childrenResult = await db.query(
+      'SELECT id, name, year_group, avatar FROM children WHERE family_id = $1 ORDER BY name',
+      [family.id]
+    );
+
+    res.json({
+      family: {
+        id: family.id,
+        email: family.email,
+        familyName: family.family_name,
+      },
+      children: childrenResult.rows,
+    });
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
+// CHILD PROFILE ROUTES
+// ============================================
+
+// Add a child profile
+app.post('/api/children', auth.requireAuth, async (req, res) => {
+  try {
+    const { name, yearGroup, avatar } = req.body;
+
+    if (!name || !yearGroup) {
+      return res.status(400).json({ error: 'Name and year group are required' });
+    }
+
+    if (yearGroup < 7 || yearGroup > 11) {
+      return res.status(400).json({ error: 'Year group must be between 7 and 11' });
+    }
+
+    const result = await db.query(
+      'INSERT INTO children (family_id, name, year_group, avatar) VALUES ($1, $2, $3, $4) RETURNING id, name, year_group, avatar',
+      [req.family.familyId, name, yearGroup, avatar || 'default']
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Add child error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Get all children for family
+app.get('/api/children', auth.requireAuth, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, name, year_group, avatar FROM children WHERE family_id = $1 ORDER BY name',
+      [req.family.familyId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get children error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update a child profile
+app.put('/api/children/:childId', auth.requireAuth, async (req, res) => {
+  try {
+    const { childId } = req.params;
+    const { name, yearGroup, avatar } = req.body;
+
+    const result = await db.query(
+      `UPDATE children SET
+        name = COALESCE($1, name),
+        year_group = COALESCE($2, year_group),
+        avatar = COALESCE($3, avatar)
+      WHERE id = $4 AND family_id = $5
+      RETURNING id, name, year_group, avatar`,
+      [name, yearGroup, avatar, childId, req.family.familyId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update child error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete a child profile
+app.delete('/api/children/:childId', auth.requireAuth, async (req, res) => {
+  try {
+    const { childId } = req.params;
+
+    const result = await db.query(
+      'DELETE FROM children WHERE id = $1 AND family_id = $2 RETURNING id',
+      [childId, req.family.familyId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Child not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete child error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================
+// TUTORING ROUTES (with optional auth)
+// ============================================
+
 // Start or continue a tutoring session
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', auth.optionalAuth, async (req, res) => {
   try {
     const { sessionId, message, subject, year, image } = req.body;
 
@@ -525,12 +778,14 @@ Rules:
 });
 
 // Save quiz result
-app.post('/api/quiz/result', (req, res) => {
+app.post('/api/quiz/result', auth.optionalAuth, (req, res) => {
   try {
     const { subject, topic, year, score, total, timestamp } = req.body;
+    const childId = req.headers['x-child-id'];
 
     const result = {
       id: uuidv4(),
+      childId: childId ? parseInt(childId) : null,
       subject,
       topic,
       year,
@@ -625,8 +880,15 @@ app.get('/api/parent/summary', (req, res) => {
 });
 
 // Parent dashboard - quiz summary
-app.get('/api/parent/quiz-summary', (req, res) => {
-  if (quizResults.length === 0) {
+app.get('/api/parent/quiz-summary', auth.optionalAuth, (req, res) => {
+  const childId = req.query.childId ? parseInt(req.query.childId) : null;
+
+  // Filter quiz results by childId if provided
+  const filteredResults = childId
+    ? quizResults.filter(r => r.childId === childId)
+    : quizResults;
+
+  if (filteredResults.length === 0) {
     return res.json({
       totalQuizzes: 0,
       averageScore: 0,
@@ -637,13 +899,13 @@ app.get('/api/parent/quiz-summary', (req, res) => {
   }
 
   // Calculate overall stats
-  const totalQuizzes = quizResults.length;
-  const totalPercentage = quizResults.reduce((sum, r) => sum + r.percentage, 0);
+  const totalQuizzes = filteredResults.length;
+  const totalPercentage = filteredResults.reduce((sum, r) => sum + r.percentage, 0);
   const averageScore = Math.round(totalPercentage / totalQuizzes);
 
   // Find best subject (subject with highest average score)
   const subjectScores = {};
-  quizResults.forEach(r => {
+  filteredResults.forEach(r => {
     if (!subjectScores[r.subject]) {
       subjectScores[r.subject] = { total: 0, count: 0 };
     }
@@ -663,7 +925,7 @@ app.get('/api/parent/quiz-summary', (req, res) => {
 
   // Find weak areas (topics with avg score below 60%)
   const topicScores = {};
-  quizResults.forEach(r => {
+  filteredResults.forEach(r => {
     const key = `${r.subject}:${r.topic}`;
     if (!topicScores[key]) {
       topicScores[key] = { subject: r.subject, topic: r.topic, total: 0, count: 0 };
@@ -683,7 +945,7 @@ app.get('/api/parent/quiz-summary', (req, res) => {
     .slice(0, 5);
 
   // Get recent results (most recent first)
-  const recentResults = [...quizResults]
+  const recentResults = [...filteredResults]
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
     .slice(0, 10);
 

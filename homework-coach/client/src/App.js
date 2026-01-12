@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Home, Users, Sparkles, FileQuestion, Languages } from 'lucide-react';
+import { Home, Users, Sparkles, FileQuestion, Languages, User } from 'lucide-react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import AuthScreen from './components/AuthScreen';
+import ProfileSelector from './components/ProfileSelector';
 import SubjectSelect from './components/SubjectSelect';
 import ChatRoom from './components/ChatRoom';
 import ParentDashboard from './components/ParentDashboard';
@@ -11,6 +14,7 @@ import './App.css';
 
 function Navigation() {
   const location = useLocation();
+  const { currentChild, selectChild } = useAuth();
   const isParentView = location.pathname === '/parent';
   const isChatView = location.pathname.startsWith('/chat');
 
@@ -38,11 +42,44 @@ function Navigation() {
         <Users size={20} />
         <span>Parent</span>
       </Link>
+      {currentChild && (
+        <button
+          className="nav-item profile-switch"
+          onClick={() => selectChild(null)}
+          title="Switch profile"
+        >
+          <User size={20} />
+          <span>{currentChild.name.substring(0, 6)}</span>
+        </button>
+      )}
     </nav>
   );
 }
 
-function App() {
+function AppContent() {
+  const { isAuthenticated, isLoading, currentChild } = useAuth();
+
+  // Show loading spinner while checking auth
+  if (isLoading) {
+    return (
+      <div className="app loading-screen">
+        <div className="loading-spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // Show auth screen if not logged in
+  if (!isAuthenticated) {
+    return <AuthScreen />;
+  }
+
+  // Show profile selector if no child selected
+  if (!currentChild) {
+    return <ProfileSelector />;
+  }
+
+  // Show main app
   return (
     <BrowserRouter>
       <div className="app">
@@ -57,6 +94,14 @@ function App() {
         <Navigation />
       </div>
     </BrowserRouter>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

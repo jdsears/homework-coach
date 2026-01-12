@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const subjectConfig = {
   maths: {
@@ -93,7 +94,8 @@ function ChatRoom() {
   const { subject } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const year = searchParams.get('year') || '9';
+  const { currentChild } = useAuth();
+  const year = currentChild?.year_group || searchParams.get('year') || '9';
 
   const config = subjectConfig[subject] || subjectConfig.maths;
 
@@ -188,7 +190,11 @@ function ChatRoom() {
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(currentChild && { 'X-Child-Id': currentChild.id }),
+        },
+        credentials: 'include',
         body: JSON.stringify({
           sessionId,
           message: text || 'Can you help me with this image?',
