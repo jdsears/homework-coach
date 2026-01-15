@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
+import { Calculator, BookOpen, Atom, FlaskConical, Microscope, Globe, Landmark, Languages } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const subjects = [
@@ -19,11 +19,25 @@ const subjects = [
     icon: BookOpen,
   },
   {
-    id: 'science',
-    name: 'Science',
-    description: 'Unlock the secrets of the universe',
-    coach: 'Sensei Phoenix 🔬',
+    id: 'physics',
+    name: 'Physics',
+    description: 'Forces, energy & the universe',
+    coach: 'Sensei Volt ⚛️',
+    icon: Atom,
+  },
+  {
+    id: 'chemistry',
+    name: 'Chemistry',
+    description: 'Atoms, reactions & elements',
+    coach: 'Sensei Flux 🧪',
     icon: FlaskConical,
+  },
+  {
+    id: 'biology',
+    name: 'Biology',
+    description: 'Life, cells & living things',
+    coach: 'Sensei Helix 🧬',
+    icon: Microscope,
   },
   {
     id: 'geography',

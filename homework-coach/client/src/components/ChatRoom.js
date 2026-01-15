@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, Send, Calculator, BookOpen, Atom, FlaskConical, Microscope, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -44,20 +44,56 @@ const curriculumTopics = {
       "🎓 Teach me a topic...",
     ],
   },
-  science: {
-    name: 'Science',
-    sensei: 'Sensei Phoenix',
-    emoji: '🔬',
-    icon: FlaskConical,
+  physics: {
+    name: 'Physics',
+    sensei: 'Sensei Volt',
+    emoji: '⚛️',
+    icon: Atom,
     years: {
-      7: ['Cells & organisms', 'Particles & matter', 'Forces & motion', 'Energy', 'Atoms & elements', 'Reproduction'],
-      8: ['Photosynthesis', 'Respiration', 'Chemical reactions', 'Light & sound', 'Earth & space', 'Health'],
-      9: ['Inheritance', 'Periodic table', 'Electricity', 'Waves', 'Ecosystems', 'Acids & alkalis'],
-      10: ['Cell biology', 'Organisation', 'Atomic structure', 'Bonding', 'Energy changes', 'Electricity & circuits'],
-      11: ['Homeostasis', 'Inheritance & variation', 'Organic chemistry', 'Rates of reaction', 'Forces', 'Magnetism & EM'],
+      7: ['Forces & motion', 'Energy transfers', 'Sound waves', 'Light', 'Space', 'Electricity basics'],
+      8: ['Speed & acceleration', 'Pressure', 'Moments', 'Heating & cooling', 'Magnets', 'Current & voltage'],
+      9: ['Energy resources', 'Waves', 'Electromagnetic spectrum', 'Work & power', 'Circuits', 'Radioactivity intro'],
+      10: ['Forces & motion (GCSE)', 'Energy (GCSE)', 'Waves (GCSE)', 'Electricity (GCSE)', 'Magnetism', 'Particle model'],
+      11: ['Atomic structure', 'Nuclear physics', 'Space physics', 'Forces & pressure', 'Electromagnetism', 'Exam technique'],
     },
     starters: [
-      "Help me understand a science concept",
+      "Help me with a physics problem",
+      "📝 Review my marked homework",
+      "🎓 Teach me a topic...",
+    ],
+  },
+  chemistry: {
+    name: 'Chemistry',
+    sensei: 'Sensei Flux',
+    emoji: '🧪',
+    icon: FlaskConical,
+    years: {
+      7: ['Particles & matter', 'Atoms & elements', 'Mixtures & separation', 'Acids & alkalis', 'Chemical reactions', 'Metals & non-metals'],
+      8: ['Periodic table', 'Atoms & molecules', 'Types of reactions', 'Combustion', 'Earth & atmosphere', 'Rocks & weathering'],
+      9: ['Bonding', 'Structure of materials', 'Rates of reaction', 'Exothermic & endothermic', 'Electrolysis', 'Crude oil'],
+      10: ['Atomic structure (GCSE)', 'Bonding (GCSE)', 'Quantitative chemistry', 'Chemical changes', 'Energy changes', 'Organic chemistry'],
+      11: ['Rate & equilibrium', 'Crude oil & fuels', 'Chemical analysis', 'Atmosphere', 'Using resources', 'Exam technique'],
+    },
+    starters: [
+      "Help me with chemistry homework",
+      "📝 Review my marked homework",
+      "🎓 Teach me a topic...",
+    ],
+  },
+  biology: {
+    name: 'Biology',
+    sensei: 'Sensei Helix',
+    emoji: '🧬',
+    icon: Microscope,
+    years: {
+      7: ['Cells', 'Organ systems', 'Reproduction', 'Muscles & skeleton', 'Ecosystems', 'Variation'],
+      8: ['Photosynthesis', 'Respiration', 'Digestion', 'Health & disease', 'Plants', 'Food chains'],
+      9: ['Inheritance', 'Evolution', 'Nervous system', 'Hormones', 'Ecology', 'Human impact'],
+      10: ['Cell biology (GCSE)', 'Organisation', 'Infection & response', 'Bioenergetics', 'Homeostasis', 'Inheritance'],
+      11: ['Variation & evolution', 'Ecology', 'Genetic engineering', 'Classification', 'Decay', 'Exam technique'],
+    },
+    starters: [
+      "Help me understand biology",
       "📝 Review my marked homework",
       "🎓 Teach me a topic...",
     ],

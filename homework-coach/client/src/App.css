@@ -36,7 +36,9 @@
   /* Subject colours - neon style */
   --color-maths: #4cc9f0;
   --color-english: #9d4edd;
-  --color-science: #00f593;
+  --color-physics: #a855f7;
+  --color-chemistry: #00f593;
+  --color-biology: #22d3ee;
   --color-geography: #ff9f1c;
   --color-history: #ff5e78;
   --color-french: #4361ee;
@@ -322,7 +324,9 @@ h2 {
 
 .subject-card.maths { --card-color: var(--color-maths); }
 .subject-card.english { --card-color: var(--color-english); }
-.subject-card.science { --card-color: var(--color-science); }
+.subject-card.physics { --card-color: var(--color-physics); }
+.subject-card.chemistry { --card-color: var(--color-chemistry); }
+.subject-card.biology { --card-color: var(--color-biology); }
 .subject-card.geography { --card-color: var(--color-geography); }
 .subject-card.history { --card-color: var(--color-history); }
 .subject-card.french { --card-color: var(--color-french); }
@@ -360,7 +364,9 @@ h2 {
 
 .subject-card.maths .subject-icon { background: linear-gradient(135deg, var(--color-maths), #0077b6); box-shadow: 0 0 20px rgba(76, 201, 240, 0.4); }
 .subject-card.english .subject-icon { background: linear-gradient(135deg, var(--color-english), #5a189a); box-shadow: 0 0 20px rgba(157, 78, 221, 0.4); }
-.subject-card.science .subject-icon { background: linear-gradient(135deg, var(--color-science), #00b4d8); box-shadow: 0 0 20px rgba(0, 245, 147, 0.4); }
+.subject-card.physics .subject-icon { background: linear-gradient(135deg, var(--color-physics), #7c3aed); box-shadow: 0 0 20px rgba(168, 85, 247, 0.4); }
+.subject-card.chemistry .subject-icon { background: linear-gradient(135deg, var(--color-chemistry), #00b4d8); box-shadow: 0 0 20px rgba(0, 245, 147, 0.4); }
+.subject-card.biology .subject-icon { background: linear-gradient(135deg, var(--color-biology), #0891b2); box-shadow: 0 0 20px rgba(34, 211, 238, 0.4); }
 .subject-card.geography .subject-icon { background: linear-gradient(135deg, var(--color-geography), #f77f00); box-shadow: 0 0 20px rgba(255, 159, 28, 0.4); }
 .subject-card.history .subject-icon { background: linear-gradient(135deg, var(--color-history), #d00000); box-shadow: 0 0 20px rgba(255, 94, 120, 0.4); }
 .subject-card.french .subject-icon { background: linear-gradient(135deg, var(--color-french), #3a0ca3); box-shadow: 0 0 20px rgba(67, 97, 238, 0.4); }
@@ -902,7 +908,9 @@ h2 {
 
 .welcome-avatar.maths { background: linear-gradient(135deg, rgba(76, 201, 240, 0.3), rgba(67, 97, 238, 0.3)); }
 .welcome-avatar.english { background: linear-gradient(135deg, rgba(157, 78, 221, 0.3), rgba(123, 44, 191, 0.3)); }
-.welcome-avatar.science { background: linear-gradient(135deg, rgba(0, 245, 147, 0.3), rgba(0, 180, 216, 0.3)); }
+.welcome-avatar.physics { background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(124, 58, 237, 0.3)); }
+.welcome-avatar.chemistry { background: linear-gradient(135deg, rgba(0, 245, 147, 0.3), rgba(0, 180, 216, 0.3)); }
+.welcome-avatar.biology { background: linear-gradient(135deg, rgba(34, 211, 238, 0.3), rgba(8, 145, 178, 0.3)); }
 .welcome-avatar.geography { background: linear-gradient(135deg, rgba(255, 159, 28, 0.3), rgba(247, 127, 0, 0.3)); }
 .welcome-avatar.history { background: linear-gradient(135deg, rgba(255, 94, 120, 0.3), rgba(208, 0, 0, 0.3)); }
 .welcome-avatar.french { background: linear-gradient(135deg, rgba(67, 97, 238, 0.3), rgba(58, 12, 163, 0.3)); }

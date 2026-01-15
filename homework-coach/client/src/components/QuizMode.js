@@ -6,7 +6,9 @@ import { useAuth } from '../context/AuthContext';
 const subjectTopics = {
   maths: ['fractions', 'algebra', 'percentages', 'Pythagoras', 'ratios', 'equations'],
   english: ['grammar', 'vocabulary', 'literary devices', 'Shakespeare', 'essay writing'],
-  science: ['atoms', 'cells', 'forces', 'electricity', 'chemical reactions', 'ecosystems'],
+  physics: ['forces', 'energy', 'electricity', 'waves', 'motion', 'magnetism'],
+  chemistry: ['atoms', 'elements', 'reactions', 'acids & alkalis', 'bonding', 'periodic table'],
+  biology: ['cells', 'ecosystems', 'respiration', 'photosynthesis', 'inheritance', 'evolution'],
   geography: ['rivers', 'volcanoes', 'climate', 'population', 'maps', 'tectonics'],
   history: ['the Tudors', 'World War II', 'Industrial Revolution', 'Roman Empire', 'Medieval England'],
   french: ['greetings', 'numbers', 'food vocabulary', 'family', 'past tense', 'opinions'],
