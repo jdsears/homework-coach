@@ -1767,6 +1767,17 @@ h2 {
   color: var(--manga-cyan);
 }
 
+.year-badge {
+  display: inline-block;
+  background: var(--manga-purple);
+  color: white;
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  margin-left: 4px;
+  font-weight: 700;
+}
+
 .start-btn {
   width: 100%;
   padding: var(--space-md) var(--space-lg);
