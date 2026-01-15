@@ -222,6 +222,57 @@ function ChatRoom() {
     }
   }, [messages]);
 
+  // Find the best available voice - prefer natural female British voices
+  const getBestVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) return null;
+
+    // Priority list of high-quality natural female voices (in preference order)
+    const preferredVoices = [
+      // Microsoft Neural voices (very natural)
+      'Microsoft Sonia Online (Natural)',
+      'Microsoft Libby Online (Natural)',
+      'Microsoft Mia Online (Natural)',
+      // Google high-quality voices
+      'Google UK English Female',
+      // Apple voices (macOS/iOS)
+      'Samantha',
+      'Kate',
+      'Serena',
+      'Moira',
+      // Microsoft standard voices
+      'Microsoft Hazel Desktop',
+      'Microsoft Susan',
+      'Hazel',
+      // Other quality voices
+      'Fiona',
+      'Veena',
+    ];
+
+    // Try to find a preferred voice
+    for (const voiceName of preferredVoices) {
+      const voice = voices.find(v =>
+        v.name.includes(voiceName) || v.name === voiceName
+      );
+      if (voice) return voice;
+    }
+
+    // Fall back to any female-sounding British English voice
+    const britishFemale = voices.find(v =>
+      v.lang === 'en-GB' &&
+      (v.name.toLowerCase().includes('female') ||
+       /\b(kate|serena|fiona|emma|amy|joanna|salli|kendra|ivy)\b/i.test(v.name))
+    );
+    if (britishFemale) return britishFemale;
+
+    // Fall back to any British English voice
+    const british = voices.find(v => v.lang === 'en-GB');
+    if (british) return british;
+
+    // Fall back to any English voice
+    return voices.find(v => v.lang.startsWith('en'));
+  };
+
   // Text-to-speech functionality
   const speakMessage = (text, index) => {
     // Cancel any ongoing speech
@@ -233,7 +284,7 @@ function ChatRoom() {
       return;
     }
 
-    // Strip markdown formatting for cleaner speech
+    // Strip markdown formatting and improve flow for speech
     const cleanText = text
       .replace(/#{1,6}\s?/g, '') // Remove headers
       .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
@@ -241,18 +292,25 @@ function ChatRoom() {
       .replace(/`(.*?)`/g, '$1') // Remove code
       .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links
       .replace(/[-*+]\s/g, '') // Remove list markers
-      .replace(/\n+/g, '. '); // Replace newlines with pauses
+      .replace(/\n{2,}/g, '. ') // Double newlines become pauses
+      .replace(/\n/g, ', ') // Single newlines become slight pauses
+      .replace(/([.!?])\s+/g, '$1 ... ') // Add natural pauses after sentences
+      .replace(/:\s*/g, ': ... ') // Add pause after colons
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 0.9; // Slightly slower for kids
-    utterance.pitch = 1.1; // Slightly higher pitch for friendliness
 
-    // Try to use a British English voice
-    const voices = window.speechSynthesis.getVoices();
-    const britishVoice = voices.find(v => v.lang === 'en-GB') || voices.find(v => v.lang.startsWith('en'));
-    if (britishVoice) {
-      utterance.voice = britishVoice;
+    // Get best available voice
+    const voice = getBestVoice();
+    if (voice) {
+      utterance.voice = voice;
     }
+
+    // Adjust rate and pitch for natural, friendly sound
+    utterance.rate = 0.95; // Slightly slower for clarity
+    utterance.pitch = 1.0; // Natural pitch (let the voice's natural pitch shine)
+    utterance.volume = 1.0;
 
     utterance.onend = () => setSpeakingIndex(null);
     utterance.onerror = () => setSpeakingIndex(null);
@@ -260,6 +318,15 @@ function ChatRoom() {
     setSpeakingIndex(index);
     window.speechSynthesis.speak(utterance);
   };
+
+  // Load voices (some browsers need this)
+  useEffect(() => {
+    const loadVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, []);
 
   // Stop speech when component unmounts
   useEffect(() => {
