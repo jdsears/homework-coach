@@ -765,9 +765,6 @@ Make them progressively harder. Keep language simple and age-appropriate. Use UK
   }
 });
 
-// In-memory quiz results storage
-const quizResults = [];
-
 // Generate a quiz
 app.post('/api/quiz', async (req, res) => {
   try {
@@ -830,73 +827,150 @@ Rules:
 });
 
 // Save quiz result
-app.post('/api/quiz/result', auth.optionalAuth, (req, res) => {
+app.post('/api/quiz/result', auth.optionalAuth, async (req, res) => {
   try {
-    const { subject, topic, year, score, total, timestamp } = req.body;
+    const { subject, topic, year, score, total, questions } = req.body;
     const childId = req.headers['x-child-id'];
 
-    const result = {
-      id: uuidv4(),
-      childId: childId ? parseInt(childId) : null,
-      subject,
-      topic,
-      year,
-      score,
-      total,
-      percentage: Math.round((score / total) * 100),
-      timestamp: timestamp || new Date().toISOString(),
-    };
+    const percentage = Math.round((score / total) * 100);
 
-    quizResults.push(result);
+    // Save to database
+    const result = await db.query(
+      `INSERT INTO quiz_results (child_id, subject, topic, year_group, score, total, percentage, questions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, child_id, subject, topic, year_group, score, total, percentage, created_at`,
+      [childId ? parseInt(childId) : null, subject, topic, year || 9, score, total, percentage, JSON.stringify(questions || [])]
+    );
 
-    res.json({ success: true, result });
+    res.json({ success: true, result: result.rows[0] });
   } catch (error) {
     console.error('Error saving quiz result:', error);
     res.status(500).json({ error: 'Could not save quiz result' });
   }
 });
 
-// Get quiz results for parent dashboard
-app.get('/api/quiz/results', (req, res) => {
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
+// Get quiz results for a child (for progress tracking)
+app.get('/api/quiz/results/child/:childId', auth.requireAuth, async (req, res) => {
+  try {
+    const { childId } = req.params;
 
-  const recentResults = quizResults.filter(r =>
-    new Date(r.timestamp) > weekAgo
-  );
+    const results = await db.query(
+      `SELECT * FROM quiz_results WHERE child_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [childId]
+    );
 
-  // Calculate stats
-  const subjectStats = {};
-  recentResults.forEach(r => {
-    if (!subjectStats[r.subject]) {
-      subjectStats[r.subject] = { quizzes: 0, totalScore: 0, topics: {} };
+    // Calculate stats
+    const allResults = results.rows;
+
+    if (allResults.length === 0) {
+      return res.json({
+        results: [],
+        stats: { totalQuizzes: 0, averageScore: 0, subjectBreakdown: {}, weakAreas: [], strongAreas: [] }
+      });
     }
-    subjectStats[r.subject].quizzes++;
-    subjectStats[r.subject].totalScore += r.percentage;
 
-    if (!subjectStats[r.subject].topics[r.topic]) {
-      subjectStats[r.subject].topics[r.topic] = [];
-    }
-    subjectStats[r.subject].topics[r.topic].push(r.percentage);
-  });
+    // Subject breakdown
+    const subjectStats = {};
+    allResults.forEach(r => {
+      if (!subjectStats[r.subject]) {
+        subjectStats[r.subject] = { quizzes: 0, totalPercentage: 0, topics: {} };
+      }
+      subjectStats[r.subject].quizzes++;
+      subjectStats[r.subject].totalPercentage += r.percentage;
 
-  // Find weak areas (topics with average score < 60%)
-  const weakAreas = [];
-  Object.entries(subjectStats).forEach(([subject, stats]) => {
-    Object.entries(stats.topics).forEach(([topic, scores]) => {
-      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-      if (avg < 60) {
-        weakAreas.push({ subject, topic, averageScore: Math.round(avg) });
+      if (!subjectStats[r.subject].topics[r.topic]) {
+        subjectStats[r.subject].topics[r.topic] = [];
+      }
+      subjectStats[r.subject].topics[r.topic].push(r.percentage);
+    });
+
+    // Find weak and strong areas
+    const weakAreas = [];
+    const strongAreas = [];
+    Object.entries(subjectStats).forEach(([subject, stats]) => {
+      stats.average = Math.round(stats.totalPercentage / stats.quizzes);
+      Object.entries(stats.topics).forEach(([topic, scores]) => {
+        const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        if (avg < 60) {
+          weakAreas.push({ subject, topic, averageScore: avg, attempts: scores.length });
+        } else if (avg >= 80) {
+          strongAreas.push({ subject, topic, averageScore: avg, attempts: scores.length });
+        }
+      });
+    });
+
+    // Sort weak areas by score (lowest first)
+    weakAreas.sort((a, b) => a.averageScore - b.averageScore);
+    strongAreas.sort((a, b) => b.averageScore - a.averageScore);
+
+    const totalPercentage = allResults.reduce((sum, r) => sum + r.percentage, 0);
+    const averageScore = Math.round(totalPercentage / allResults.length);
+
+    res.json({
+      results: allResults,
+      stats: {
+        totalQuizzes: allResults.length,
+        averageScore,
+        subjectBreakdown: subjectStats,
+        weakAreas: weakAreas.slice(0, 5),
+        strongAreas: strongAreas.slice(0, 5),
       }
     });
-  });
+  } catch (error) {
+    console.error('Error fetching quiz results:', error);
+    res.status(500).json({ error: 'Could not fetch quiz results' });
+  }
+});
 
-  res.json({
-    totalQuizzes: recentResults.length,
-    results: recentResults,
-    subjectStats,
-    weakAreas,
-  });
+// Get quiz results for parent dashboard
+app.get('/api/quiz/results', async (req, res) => {
+  try {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const results = await db.query(
+      `SELECT * FROM quiz_results WHERE created_at > $1 ORDER BY created_at DESC`,
+      [weekAgo.toISOString()]
+    );
+
+    const recentResults = results.rows;
+
+    // Calculate stats
+    const subjectStats = {};
+    recentResults.forEach(r => {
+      if (!subjectStats[r.subject]) {
+        subjectStats[r.subject] = { quizzes: 0, totalScore: 0, topics: {} };
+      }
+      subjectStats[r.subject].quizzes++;
+      subjectStats[r.subject].totalScore += r.percentage;
+
+      if (!subjectStats[r.subject].topics[r.topic]) {
+        subjectStats[r.subject].topics[r.topic] = [];
+      }
+      subjectStats[r.subject].topics[r.topic].push(r.percentage);
+    });
+
+    // Find weak areas (topics with average score < 60%)
+    const weakAreas = [];
+    Object.entries(subjectStats).forEach(([subject, stats]) => {
+      Object.entries(stats.topics).forEach(([topic, scores]) => {
+        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+        if (avg < 60) {
+          weakAreas.push({ subject, topic, averageScore: Math.round(avg) });
+        }
+      });
+    });
+
+    res.json({
+      totalQuizzes: recentResults.length,
+      results: recentResults,
+      subjectStats,
+      weakAreas,
+    });
+  } catch (error) {
+    console.error('Error fetching quiz results:', error);
+    res.status(500).json({ error: 'Could not fetch quiz results' });
+  }
 });
 
 // Parent dashboard - get weekly summary
@@ -932,82 +1006,95 @@ app.get('/api/parent/summary', (req, res) => {
 });
 
 // Parent dashboard - quiz summary
-app.get('/api/parent/quiz-summary', auth.optionalAuth, (req, res) => {
-  const childId = req.query.childId ? parseInt(req.query.childId) : null;
+app.get('/api/parent/quiz-summary', auth.optionalAuth, async (req, res) => {
+  try {
+    const childId = req.query.childId ? parseInt(req.query.childId) : null;
 
-  // Filter quiz results by childId if provided
-  const filteredResults = childId
-    ? quizResults.filter(r => r.childId === childId)
-    : quizResults;
+    // Fetch quiz results from database
+    let results;
+    if (childId) {
+      results = await db.query(
+        `SELECT * FROM quiz_results WHERE child_id = $1 ORDER BY created_at DESC`,
+        [childId]
+      );
+    } else {
+      results = await db.query(
+        `SELECT * FROM quiz_results ORDER BY created_at DESC LIMIT 100`
+      );
+    }
 
-  if (filteredResults.length === 0) {
-    return res.json({
-      totalQuizzes: 0,
-      averageScore: 0,
-      bestSubject: null,
-      weakAreas: [],
-      recentResults: [],
+    const filteredResults = results.rows;
+
+    if (filteredResults.length === 0) {
+      return res.json({
+        totalQuizzes: 0,
+        averageScore: 0,
+        bestSubject: null,
+        weakAreas: [],
+        recentResults: [],
+      });
+    }
+
+    // Calculate overall stats
+    const totalQuizzes = filteredResults.length;
+    const totalPercentage = filteredResults.reduce((sum, r) => sum + r.percentage, 0);
+    const averageScore = Math.round(totalPercentage / totalQuizzes);
+
+    // Find best subject (subject with highest average score)
+    const subjectScores = {};
+    filteredResults.forEach(r => {
+      if (!subjectScores[r.subject]) {
+        subjectScores[r.subject] = { total: 0, count: 0 };
+      }
+      subjectScores[r.subject].total += r.percentage;
+      subjectScores[r.subject].count += 1;
     });
+
+    let bestSubject = null;
+    let bestAvg = 0;
+    Object.entries(subjectScores).forEach(([subject, data]) => {
+      const avg = data.total / data.count;
+      if (avg > bestAvg) {
+        bestAvg = avg;
+        bestSubject = subject;
+      }
+    });
+
+    // Find weak areas (topics with avg score below 60%)
+    const topicScores = {};
+    filteredResults.forEach(r => {
+      const key = `${r.subject}:${r.topic}`;
+      if (!topicScores[key]) {
+        topicScores[key] = { subject: r.subject, topic: r.topic, total: 0, count: 0 };
+      }
+      topicScores[key].total += r.percentage;
+      topicScores[key].count += 1;
+    });
+
+    const weakAreas = Object.values(topicScores)
+      .map(t => ({
+        subject: t.subject,
+        topic: t.topic,
+        avgScore: Math.round(t.total / t.count),
+      }))
+      .filter(t => t.avgScore < 60)
+      .sort((a, b) => a.avgScore - b.avgScore)
+      .slice(0, 5);
+
+    // Get recent results (most recent first)
+    const recentResults = filteredResults.slice(0, 10);
+
+    res.json({
+      totalQuizzes,
+      averageScore,
+      bestSubject,
+      weakAreas,
+      recentResults,
+    });
+  } catch (error) {
+    console.error('Error fetching quiz summary:', error);
+    res.status(500).json({ error: 'Could not fetch quiz summary' });
   }
-
-  // Calculate overall stats
-  const totalQuizzes = filteredResults.length;
-  const totalPercentage = filteredResults.reduce((sum, r) => sum + r.percentage, 0);
-  const averageScore = Math.round(totalPercentage / totalQuizzes);
-
-  // Find best subject (subject with highest average score)
-  const subjectScores = {};
-  filteredResults.forEach(r => {
-    if (!subjectScores[r.subject]) {
-      subjectScores[r.subject] = { total: 0, count: 0 };
-    }
-    subjectScores[r.subject].total += r.percentage;
-    subjectScores[r.subject].count += 1;
-  });
-
-  let bestSubject = null;
-  let bestAvg = 0;
-  Object.entries(subjectScores).forEach(([subject, data]) => {
-    const avg = data.total / data.count;
-    if (avg > bestAvg) {
-      bestAvg = avg;
-      bestSubject = subject;
-    }
-  });
-
-  // Find weak areas (topics with avg score below 60%)
-  const topicScores = {};
-  filteredResults.forEach(r => {
-    const key = `${r.subject}:${r.topic}`;
-    if (!topicScores[key]) {
-      topicScores[key] = { subject: r.subject, topic: r.topic, total: 0, count: 0 };
-    }
-    topicScores[key].total += r.percentage;
-    topicScores[key].count += 1;
-  });
-
-  const weakAreas = Object.values(topicScores)
-    .map(t => ({
-      subject: t.subject,
-      topic: t.topic,
-      avgScore: Math.round(t.total / t.count),
-    }))
-    .filter(t => t.avgScore < 60)
-    .sort((a, b) => a.avgScore - b.avgScore)
-    .slice(0, 5);
-
-  // Get recent results (most recent first)
-  const recentResults = [...filteredResults]
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, 10);
-
-  res.json({
-    totalQuizzes,
-    averageScore,
-    bestSubject,
-    weakAreas,
-    recentResults,
-  });
 });
 
 // Helper function to log struggles

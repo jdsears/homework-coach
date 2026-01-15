@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trophy, CheckCircle, XCircle, Sparkles } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Trophy, CheckCircle, XCircle, Sparkles, MessageCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const subjectTopics = {
@@ -89,6 +89,15 @@ function QuizMode() {
 
   const saveQuizResult = async () => {
     const score = answers.filter(a => a.correct).length;
+    // Build questions data with user's answers for progress tracking
+    const questionsWithAnswers = quiz.questions.map((q, idx) => ({
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      userAnswer: answers[idx]?.selected,
+      correct: answers[idx]?.correct,
+    }));
+
     try {
       await fetch('/api/quiz/result', {
         method: 'POST',
@@ -103,7 +112,7 @@ function QuizMode() {
           year,
           score,
           total: quiz.questions.length,
-          timestamp: new Date().toISOString(),
+          questions: questionsWithAnswers,
         }),
       });
     } catch (error) {
@@ -158,10 +167,42 @@ function QuizMode() {
             ))}
           </div>
 
-          {percentage < 80 && (
-            <div className="revision-tip">
-              <h3>💡 Revision Tip</h3>
-              <p>Try a lesson on <strong>{topic}</strong> to strengthen your understanding, then take the quiz again!</p>
+          {/* Learning Suggestions for wrong answers */}
+          {answers.some(a => !a.correct) && (
+            <div className="learning-suggestions">
+              <h3><MessageCircle size={20} /> Get Help From Your Coach</h3>
+              <p>Here are the questions you got wrong. Chat with your coach to learn more!</p>
+              <div className="wrong-questions">
+                {quiz.questions.map((q, idx) => (
+                  !answers[idx]?.correct && (
+                    <div key={idx} className="wrong-question-item">
+                      <div className="wrong-q-text">
+                        <XCircle size={16} className="wrong-icon" />
+                        <span><strong>Q{idx + 1}:</strong> {q.question}</span>
+                      </div>
+                      <div className="wrong-q-answer">
+                        Your answer: <span className="user-answer">{q.options[answers[idx]?.selected]}</span>
+                        <br />
+                        Correct answer: <span className="correct-answer">{q.options[q.correctAnswer]}</span>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+              <Link
+                to={`/chat/${subject}?year=${year}&topic=${encodeURIComponent(topic)}`}
+                className="coach-link-btn"
+              >
+                <MessageCircle size={18} />
+                Ask your coach about {topic}
+              </Link>
+            </div>
+          )}
+
+          {percentage >= 80 && (
+            <div className="success-message">
+              <h3>🎉 Excellent Work!</h3>
+              <p>You've shown great understanding of <strong>{topic}</strong>. Ready to try a new challenge?</p>
             </div>
           )}
 
@@ -286,7 +327,9 @@ function QuizMode() {
               }}>
                 <option value="maths">Maths</option>
                 <option value="english">English</option>
-                <option value="science">Science</option>
+                <option value="physics">Physics</option>
+                <option value="chemistry">Chemistry</option>
+                <option value="biology">Biology</option>
                 <option value="geography">Geography</option>
                 <option value="history">History</option>
                 <option value="french">French</option>

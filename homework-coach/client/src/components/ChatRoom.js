@@ -204,6 +204,10 @@ function ChatRoom() {
     window.scrollTo(0, 0);
   }, []);
 
+  // Handle topic query parameter from quiz results
+  const topicFromQuiz = searchParams.get('topic');
+  const [topicHandled, setTopicHandled] = useState(false);
+
   // Scroll to start of new assistant message (so child can read from top)
   const scrollToNewMessage = () => {
     if (lastMessageRef.current) {
@@ -377,6 +381,17 @@ function ChatRoom() {
       sendMessage();
     }
   };
+
+  // Auto-send help request if coming from quiz results with a topic
+  useEffect(() => {
+    if (topicFromQuiz && !topicHandled && messages.length === 0 && !isLoading) {
+      setTopicHandled(true);
+      const helpMessage = `I just did a quiz on "${topicFromQuiz}" and got some questions wrong. Can you help me understand this topic better?`;
+      setTimeout(() => {
+        sendMessage(helpMessage);
+      }, 300);
+    }
+  }, [topicFromQuiz, topicHandled, messages.length, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="chat-room">
