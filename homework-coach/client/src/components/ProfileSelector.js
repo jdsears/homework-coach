@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Settings, LogOut, User, Edit2, Trash2, Check, X } from 'lucide-react';
 
@@ -39,6 +39,11 @@ function ProfileSelector() {
   const [newAvatar, setNewAvatar] = useState('ninja');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const handleAddChild = async (e) => {
     e.preventDefault();

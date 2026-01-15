@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages, Image, X, ChevronDown, ChevronUp, Volume2, VolumeX } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -155,18 +155,78 @@ function ChatRoom() {
   const [showLessonPicker, setShowLessonPicker] = useState(false);
   const [showCurriculum, setShowCurriculum] = useState(false);
   const [customTopic, setCustomTopic] = useState('');
+  const [speakingIndex, setSpeakingIndex] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const lastMessageRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Scroll to start of new assistant message (so child can read from top)
+  const scrollToNewMessage = () => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll when there are messages and the last one is from assistant
+    if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+      scrollToNewMessage();
+    }
   }, [messages]);
+
+  // Text-to-speech functionality
+  const speakMessage = (text, index) => {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+
+    if (speakingIndex === index) {
+      // If clicking same message, stop speaking
+      setSpeakingIndex(null);
+      return;
+    }
+
+    // Strip markdown formatting for cleaner speech
+    const cleanText = text
+      .replace(/#{1,6}\s?/g, '') // Remove headers
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic
+      .replace(/`(.*?)`/g, '$1') // Remove code
+      .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links
+      .replace(/[-*+]\s/g, '') // Remove list markers
+      .replace(/\n+/g, '. '); // Replace newlines with pauses
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.9; // Slightly slower for kids
+    utterance.pitch = 1.1; // Slightly higher pitch for friendliness
+
+    // Try to use a British English voice
+    const voices = window.speechSynthesis.getVoices();
+    const britishVoice = voices.find(v => v.lang === 'en-GB') || voices.find(v => v.lang.startsWith('en'));
+    if (britishVoice) {
+      utterance.voice = britishVoice;
+    }
+
+    utterance.onend = () => setSpeakingIndex(null);
+    utterance.onerror = () => setSpeakingIndex(null);
+
+    setSpeakingIndex(index);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -410,20 +470,38 @@ function ChatRoom() {
             )}
           </div>
         ) : (
-          messages.map((msg, idx) => (
-            <div key={idx} className={`message ${msg.role}`}>
-              {msg.image && (
-                <div className="message-image">
-                  <img src={msg.image} alt="Uploaded content" />
+          messages.map((msg, idx) => {
+            // Add ref to last assistant message so we scroll to start of it
+            const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1;
+            return (
+              <div
+                key={idx}
+                className={`message ${msg.role}`}
+                ref={isLastAssistant ? lastMessageRef : null}
+              >
+                {msg.image && (
+                  <div className="message-image">
+                    <img src={msg.image} alt="Uploaded content" />
+                  </div>
+                )}
+                <div className="message-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                    {msg.content}
+                  </ReactMarkdown>
                 </div>
-              )}
-              <div className="message-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                  {msg.content}
-                </ReactMarkdown>
+                {msg.role === 'assistant' && (
+                  <button
+                    className={`speak-btn ${speakingIndex === idx ? 'speaking' : ''}`}
+                    onClick={() => speakMessage(msg.content, idx)}
+                    title={speakingIndex === idx ? 'Stop reading' : 'Read aloud'}
+                  >
+                    {speakingIndex === idx ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                    <span>{speakingIndex === idx ? 'Stop' : 'Read Aloud'}</span>
+                  </button>
+                )}
               </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         {isLoading && (

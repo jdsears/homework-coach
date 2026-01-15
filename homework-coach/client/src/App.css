@@ -640,6 +640,51 @@ h2 {
   border-radius: var(--radius-full);
 }
 
+/* Speak button for text-to-speech */
+.speak-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: transparent;
+  border: 2px solid var(--manga-cyan);
+  color: var(--manga-cyan);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-full);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: var(--space-sm);
+  transition: all 0.3s ease;
+}
+
+.speak-btn:hover {
+  background: rgba(76, 201, 240, 0.1);
+  box-shadow: var(--glow-cyan);
+  transform: translateY(-2px);
+}
+
+.speak-btn.speaking {
+  background: var(--manga-cyan);
+  color: var(--bg-dark);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.speak-btn span {
+  display: none;
+}
+
+@media (min-width: 480px) {
+  .speak-btn span {
+    display: inline;
+  }
+}
+
 /* Typing indicator */
 .typing-indicator {
   display: flex;

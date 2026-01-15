@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -58,6 +58,11 @@ const subjects = [
 function SubjectSelect() {
   const { currentChild } = useAuth();
   const year = currentChild?.year_group || 9;
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   return (
     <div className="subject-select">

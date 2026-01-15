@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trophy, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +26,11 @@ function QuizMode() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const startQuiz = async () => {
     if (!topic) return;
