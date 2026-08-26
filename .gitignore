@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Builds
+client/build/
+client/dist/
+
+# Data (SQLite database, uploaded homework photos)
+data/
+
+# Logs & OS noise
+*.log
+.DS_Store
