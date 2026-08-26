@@ -13,15 +13,15 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 - **📖 Reading & Writing Coach** - Essay help, comprehension, vocabulary building
 - **🔬 Science Coach** - Explore how the world works through inquiry
 - **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
-- **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365): surds, the factor theorem, calculus, matrix transformations, circle theorems and more, bridging GCSE and A-level
+- **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365) for Years 9-11 and A-level Further Mathematics for sixth-formers: surds, the factor theorem, calculus, complex numbers, matrix transformations, circle theorems and more
 - **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints
 - **⚡ Live streaming replies** - The coach starts "typing" instantly
-- **🎯 Level-appropriate** - Each kid has a profile with their US grade (3-8) or UK school year (Years 3-11, KS2 through GCSE)
+- **🎯 Level-appropriate** - Each kid has a profile with their US grade (3-8) or UK school year (Years 3-13, KS2 through A-level)
 
 ### For Families
 
 - **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
-- **🇺🇸🇬🇧 US or UK school system** - Pick at signup (or switch in parent settings): UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs), and the Further Maths coach
+- **🇺🇸🇬🇧 US or UK school system** - Pick at signup (or switch in parent settings): UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs and A-levels in the core subjects), and the Further Maths coach
 - **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
 - **📊 Weekly dashboard** - Time-on-task, per-kid mastery, a 14-day activity chart, and an optional Sunday email digest
 - **🤖 Custom coaches** - Create a coach for anything (chess, coding, piano); they follow the same guide-not-tell rules
@@ -104,7 +104,7 @@ homework-coach/
 
 ## 🔮 Roadmap
 
-See [PLAN.md](./PLAN.md) - homework photo input, KaTeX math, interactive practice, smarter struggle detection, memory across sessions, streaks and spaced repetition are next.
+See [PLAN.md](./PLAN.md) - all planned phases have shipped: homework photo input, KaTeX math, interactive practice, struggle detection, memory across sessions, streaks and spaced repetition, US/UK curricula with Further Maths and A-levels. Postgres-at-scale remains documented-not-built.
 
 ## 📄 License
 

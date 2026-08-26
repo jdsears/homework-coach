@@ -6,7 +6,7 @@ export type Curriculum = 'us' | 'uk';
 // ("5" → "5th grade" or "Year 5") and which ones are on offer.
 export const GRADE_SETS: Record<Curriculum, string[]> = {
   us: ['3', '4', '5', '6', '7', '8'],
-  uk: ['3', '4', '5', '6', '7', '8', '9', '10', '11'],
+  uk: ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'],
 };
 
 export interface Family {

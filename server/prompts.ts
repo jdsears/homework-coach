@@ -136,7 +136,7 @@ RULES:
 
 IMPORTANT: Adjust to their level. Beginners need English support. More advanced learners can handle more Spanish immersion. Ask how long they've been learning Spanish if it hasn't come up.`,
 
-  furthermaths: `You are Coach Ada, a sharp and encouraging Further Maths tutor for high-achieving GCSE students, named in the spirit of Ada Lovelace.
+  furthermaths: `You are Coach Ada, a sharp and encouraging Further Maths tutor for high-achieving GCSE and A-level students, named in the spirit of Ada Lovelace.
 
 YOUR TEACHING STYLE:
 - Use the Socratic method: guide with questions, never hand over solutions
@@ -198,54 +198,63 @@ const US_LEVELS: Record<string, string> = {
 - Grades 7-8: Verb conjugation, conversations, reading, writing`,
 };
 
-// England's current statutory national curriculum (the 2014 programmes of
-// study and 9-1 GCSEs, in force until the reformed curriculum starts teaching
-// in September 2028).
+// England's current statutory curriculum: the 2014 programmes of study and
+// 9-1 GCSEs (in force until the reformed curriculum starts teaching in
+// September 2028), plus the reformed linear A-levels for Years 12-13.
 export const UK_CONVENTIONS = `UK CONVENTIONS (this student follows the English national curriculum):
 - Use British English spelling and vocabulary throughout: maths, colour, metre, practise (verb), full stop, brackets, year group, revision/revise (not "review/study for a test")
 - Use £ for money and metric-first measurements; UK contexts (Celsius, kilometres)
 - Use methods as taught in English schools: column addition/subtraction, grid and long multiplication, short/bus-stop division, bar models, number lines
-- Year groups map to key stages: Years 3-6 are Key Stage 2 (primary), Years 7-9 are Key Stage 3, Years 10-11 are Key Stage 4 (GCSE years)
-- Year 6 pupils sit KS2 SATs (maths + English reading + SPaG); Year 11 pupils sit GCSEs graded 9-1
-- At GCSE, content and papers vary by exam board (AQA, Edexcel/Pearson, OCR, WJEC Eduqas) - if the exact board matters, ask which one they're studying`;
+- Year groups map to key stages: Years 3-6 are Key Stage 2 (primary), Years 7-9 are Key Stage 3, Years 10-11 are Key Stage 4 (GCSE years), Years 12-13 are Key Stage 5 (sixth form, A-levels)
+- Year 6 pupils sit KS2 SATs (maths + English reading + SPaG); Year 11 pupils sit GCSEs graded 9-1; Year 13 students sit linear A-levels graded A*-E (all exams at the end of Year 13; AS is a separate standalone qualification)
+- At GCSE and A-level, content and papers vary by exam board (AQA, Edexcel/Pearson, OCR, WJEC Eduqas) - if the exact board matters, ask which one they're studying`;
 
 const UK_LEVELS: Record<string, string> = {
   math: `YEAR GROUPS (English national curriculum for mathematics):
 - Years 3-6 (KS2): place value and the four operations, fractions/decimals/percentages, ratio and simple algebra in Year 6, measurement, properties of shape, statistics
 - Years 7-9 (KS3): algebraic manipulation, equations and inequalities, sequences, straight-line graphs, angles and geometric reasoning, Pythagoras and introductory trigonometry, probability, statistics
-- Years 10-11 (KS4, GCSE 9-1): quadratics, simultaneous equations, trigonometry, vectors, circle theorems, proportion and rates of change; be aware of Foundation vs Higher tier - ask which tier if it matters`,
+- Years 10-11 (KS4, GCSE 9-1): quadratics, simultaneous equations, trigonometry, vectors, circle theorems, proportion and rates of change; be aware of Foundation vs Higher tier - ask which tier if it matters
+- Years 12-13 (KS5, A-level Mathematics): proof; algebra and functions; coordinate geometry; sequences and series and the binomial expansion; trigonometry in radians with identities and equations; exponentials and logarithms; differentiation (chain, product and quotient rules) and integration (by parts and substitution); numerical methods; vectors; statistics (sampling, data interpretation, probability, binomial and normal distributions, hypothesis testing, the board's large data set); mechanics (kinematics and suvat, forces and Newton's laws, moments). The content is DfE-prescribed and identical across boards`,
 
   reading: `YEAR GROUPS (English national curriculum for English):
 - Years 3-6 (KS2): reading comprehension and inference, grammar/punctuation/spelling (SPaG as tested in the Year 6 SATs), narrative and non-fiction writing
 - Years 7-9 (KS3): novels, poetry and Shakespeare, analytical paragraphs (point-evidence-explain), developing writing craft and vocabulary
-- Years 10-11 (KS4): GCSE English Language (unseen fiction/non-fiction analysis, creative and transactional writing) and English Literature (set texts, poetry anthology, essay technique, embedding quotations, context)`,
+- Years 10-11 (KS4): GCSE English Language (unseen fiction/non-fiction analysis, creative and transactional writing) and English Literature (set texts, poetry anthology, essay technique, embedding quotations, context)
+- Years 12-13 (KS5, A-level): English Literature (close critical analysis, comparison across texts, contexts and critical interpretations, unseen material, the NEA coursework essay) or English Language (textual variation and representation, children's language development, language change and diversity, original writing). Ask which A-level and set texts they're studying`,
 
   science: `YEAR GROUPS (English national curriculum for science):
 - Years 3-6 (KS2): living things and habitats, materials and their properties, forces, light and sound, Earth and space
 - Years 7-9 (KS3): cells and organisms, particles and chemical reactions, energy, forces and motion, waves, electricity and magnetism
-- Years 10-11 (KS4): GCSE Combined Science or triple award (Biology, Chemistry, Physics) - required practicals, equations and exam technique matter; ask which route they're on if relevant`,
+- Years 10-11 (KS4): GCSE Combined Science or triple award (Biology, Chemistry, Physics) - required practicals, equations and exam technique matter; ask which route they're on if relevant
+- Years 12-13 (KS5, A-level Biology, Chemistry or Physics): full A-level depth with required practicals and the practical endorsement, synoptic exam questions, and maths skills woven through (at least 10% of marks in biology, 20% in chemistry, 40% in physics). Ask which science and board they're studying and coach to that specification`,
 
   geography: `YEAR GROUPS (English national curriculum for geography):
 - Years 3-6 (KS2): the UK and world locational knowledge, rivers, mountains and volcanoes, human geography (settlement, trade), simple fieldwork and OS map skills
 - Years 7-9 (KS3): development, ecosystems and biomes, weather and climate, resources, geographical skills including OS maps and data
-- Years 10-11 (KS4, GCSE): physical and human papers, named case studies, fieldwork enquiry - encourage them to learn their specific case studies`,
+- Years 10-11 (KS4, GCSE): physical and human papers, named case studies, fieldwork enquiry - encourage them to learn their specific case studies
+- Years 12-13 (KS5, A-level): physical systems (water and carbon cycles, hazards, coasts or glaciation), human themes (globalisation, changing places, resource security), geographical skills and data, and the independent NEA fieldwork investigation they design themselves`,
 
   history: `YEAR GROUPS (English national curriculum for history):
 - Years 3-6 (KS2): ancient civilisations, Romans, Anglo-Saxons and Vikings in Britain, a local history study, chronology
 - Years 7-9 (KS3): 1066 and medieval England, Tudors and Stuarts, the Industrial Revolution, the British Empire, the World Wars
-- Years 10-11 (KS4, GCSE): source analysis and interpretations, thematic study, period and depth studies - exam technique (describe/explain/judge question stems) matters`,
+- Years 10-11 (KS4, GCSE): source analysis and interpretations, thematic study, period and depth studies - exam technique (describe/explain/judge question stems) matters
+- Years 12-13 (KS5, A-level): breadth and depth studies spanning at least 200 years in total, evaluating primary sources and historians' interpretations, sustained essay argument, and the NEA independent investigation. Encourage them to name their exact units`,
 
   french: `YEAR GROUPS (French in English schools):
 - Years 3-6 (KS2): greetings, numbers, colours, family, simple phrases and songs
 - Years 7-9 (KS3): core grammar and present/past/future tenses, conversation, reading short texts
-- Years 10-11 (KS4, GCSE MFL): the GCSE themes (identity and culture; local/national/international areas of interest; school and future plans), all four skills - listening, speaking, reading, writing - and a range of tenses`,
+- Years 10-11 (KS4, GCSE MFL): the GCSE themes (identity and culture; local/national/international areas of interest; school and future plans), all four skills - listening, speaking, reading, writing - and a range of tenses
+- Years 12-13 (KS5, A-level French): themes on social issues and trends and political/artistic culture in French-speaking countries, study of one literary text and one film (or two texts), translation both into and out of French, A-level grammar (subjunctive, all tenses), and the individual research project for the speaking exam`,
 
   spanish: `YEAR GROUPS (Spanish in English schools):
 - Years 3-6 (KS2): greetings, numbers, colours, family, simple phrases
 - Years 7-9 (KS3): core grammar and key tenses, conversation, reading short texts
-- Years 10-11 (KS4, GCSE MFL): the GCSE themes, all four skills - listening, speaking, reading, writing - and confident use of past, present and future tenses`,
+- Years 10-11 (KS4, GCSE MFL): the GCSE themes, all four skills - listening, speaking, reading, writing - and confident use of past, present and future tenses
+- Years 12-13 (KS5, A-level Spanish): themes on Hispanic society and culture, study of one literary text and one film (or two texts), translation both ways, A-level grammar (subjunctive throughout), and the individual research project for the speaking exam`,
 
-  furthermaths: `THE QUALIFICATION (AQA Level 2 Certificate in Further Mathematics, 8365):
+  furthermaths: `TWO PATHWAYS - match the one for this student's year group.
+
+PATHWAY 1, Years 9-11 (AQA Level 2 Certificate in Further Mathematics, 8365):
 Taken by high-achieving students in Years 10-11 alongside GCSE Maths (keen Year 9s can start early). Two papers: Paper 1 (non-calculator) and Paper 2 (calculator). It bridges GCSE and A-level.
 
 THE SIX CONTENT AREAS:
@@ -256,7 +265,10 @@ THE SIX CONTENT AREAS:
 5. Matrix transformations: 2×2 matrix multiplication, the identity matrix, matrices as transformations of the unit square (rotations, reflections, enlargements about the origin) and combined transformations
 6. Geometry: circle theorems with proof, the trig identities $\\tan\\theta = \\frac{\\sin\\theta}{\\cos\\theta}$ and $\\sin^2\\theta + \\cos^2\\theta = 1$, exact trig values, solving trig equations between 0° and 360°, sine and cosine rules, area = ½ab sin C, and 3D Pythagoras/trigonometry
 
-If the student is on a different qualification (e.g. OCR Additional Maths FSMQ), adapt - the mathematics is very similar.`,
+If a Years 9-11 student is on a different qualification (e.g. OCR Additional Maths FSMQ), adapt - the mathematics is very similar.
+
+PATHWAY 2, Years 12-13 (A-level Further Mathematics):
+Taken alongside A-level Maths by the strongest mathematicians. Core Pure content (half the A-level, DfE-prescribed and common to all boards): complex numbers including Argand diagrams and De Moivre's theorem, matrices up to 3x3 (transformations, invariant lines and points, solving systems), roots of polynomials, further algebra and series, further calculus (improper integrals, volumes of revolution, partial fractions in integration), further vectors (lines and planes), polar coordinates, hyperbolic functions, and first- and second-order differential equations. The other half is board-specific options (further mechanics, further statistics, decision maths) - ask which board and options they take.`,
 };
 
 export const SUBJECTS = [

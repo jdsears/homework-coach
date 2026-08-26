@@ -799,14 +799,14 @@ describe('UK curriculum & Further Maths', () => {
     expect(me.body.family.curriculum).toBe('uk');
     expect(me.body.children[0].grade).toBe('10');
 
-    // Year 12 isn't on offer even for UK families
+    // Year 14 isn't a thing, even for UK families
     const tooHigh = await request(ctx.app)
       .post('/api/family/signup')
       .send({
         familyName: 'X',
         pin: '1234',
         curriculum: 'uk',
-        children: [{ name: 'A', grade: '12' }],
+        children: [{ name: 'A', grade: '14' }],
       });
     expect(tooHigh.status).toBe(400);
 
@@ -901,5 +901,56 @@ describe('UK curriculum & Further Maths', () => {
     expect(genCall).toBeTruthy();
     expect(genCall.messages[0].content).toContain('Year 10');
     expect(genCall.messages[0].content).toContain('British English');
+  });
+  it('coaches sixth-formers at A-level standard', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [
+        { name: 'Grace', grade: '12' },
+        { name: 'Tom', grade: '13' },
+      ],
+    });
+
+    await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'math',
+      message: 'Help me integrate by parts',
+    });
+    let system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('Year 12');
+    expect(system).toContain('A-level Mathematics');
+    expect(system).toContain('sixth form');
+
+    await agent.post('/api/chat').send({
+      childId: children[1].id,
+      subject: 'science',
+      message: 'Quiz me on the practical endorsement',
+    });
+    system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('Year 13');
+    expect(system).toContain('practical endorsement');
+  });
+
+  it('teaches A-level Further Maths to Years 12-13', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '13' }],
+    });
+
+    const res = await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'furthermaths',
+      message: 'Explain De Moivre',
+    });
+    expect(res.status).toBe(200);
+
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('A-level Further Mathematics');
+    expect(system).toContain('complex numbers');
+    expect(system).toContain('Year 13');
   });
 });

@@ -52,6 +52,12 @@ function SubjectSelect() {
   const visibleSubjects = SUBJECTS.filter(
     subject => !subject.ukOnly || family?.curriculum === 'uk'
   );
+  // Sixth-formers see the A-level badge on Further Maths instead of GCSE
+  const sixthForm = family?.curriculum === 'uk' && Number(activeChild.grade) >= 12;
+  const badgeText = (subject: SubjectMeta): string =>
+    subject.id === 'furthermaths' && sixthForm
+      ? t('subject.furthermaths.badgeAlevel')
+      : t(subject.badgeKey as string);
 
   return (
     <div className="subject-select">
@@ -79,7 +85,7 @@ function SubjectSelect() {
             <div className="subject-info">
               <h2>
                 {subjectName(subject.id)}
-                {subject.badgeKey && <span className="gcse-badge">{t(subject.badgeKey)}</span>}
+                {subject.badgeKey && <span className="gcse-badge">{badgeText(subject)}</span>}
               </h2>
               <p>{t(`subject.${subject.id}.description`)}</p>
               <div className="coach-name">
