@@ -22,10 +22,13 @@ if (!isProd && !process.env.COOKIE_SECRET) {
 const { createDb } = require('./db');
 const { createAnthropic, CHAT_MODEL } = require('./claude');
 const { createApp } = require('./app');
+const { startWeeklyDigests } = require('./mailer');
 
 const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'homework-coach.db');
 const db = createDb(dbPath);
 const app = createApp({ db, anthropic: createAnthropic() });
+
+startWeeklyDigests(db);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

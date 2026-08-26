@@ -64,7 +64,7 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 6. **Voice in, voice out.** Web Speech API dictation for slow typists; optional read-aloud for kids reading below grade level. Both are browser-native — no new dependencies.
 7. **Adaptive difficulty.** Track per-topic correct/incorrect from practice, maintain a simple mastery score, and generate problems at the edge of each kid's ability.
 
-## Phase 3 — Retention & parent value
+## Phase 3 — Retention & parent value — ✅ shipped in PR #4
 
 1. **Streaks, XP, badges, daily challenge** — the Duolingo playbook, tuned gentle (effort-based, no punishing streak loss for a 9-year-old).
 2. **Spaced repetition** — missed practice problems return on an expanding schedule (already on the README wishlist; Phase 1's database makes it a small feature).

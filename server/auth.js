@@ -41,7 +41,7 @@ function cookieOptions(isProd, maxAge) {
 }
 
 function makeRequireFamily(db) {
-  const familyById = db.prepare('SELECT id, name, code, pin_hash FROM families WHERE id = ?');
+  const familyById = db.prepare('SELECT * FROM families WHERE id = ?');
   return (req, res, next) => {
     const familyId = req.signedCookies[FAMILY_COOKIE];
     const family = familyId ? familyById.get(familyId) : null;
