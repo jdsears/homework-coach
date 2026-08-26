@@ -1,6 +1,15 @@
-import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
+import {
+  Calculator,
+  BookOpen,
+  FlaskConical,
+  Globe,
+  Landmark,
+  Languages,
+  RefreshCw,
+} from 'lucide-react';
+import { gradeLabel } from '../api';
+import { useFamily } from '../FamilyContext';
 
 const subjects = [
   {
@@ -54,41 +63,27 @@ const subjects = [
   },
 ];
 
-const grades = ['3', '4', '5', '6', '7', '8'];
-
-const ordinal = (grade) => (grade === '3' ? '3rd' : `${grade}th`);
-
 function SubjectSelect() {
-  const [selectedGrade, setSelectedGrade] = useState('5');
+  const { activeChild, selectChild } = useFamily();
+
+  if (!activeChild) return null;
 
   return (
     <div className="subject-select">
       <header className="header">
         <div className="mascot">🎓</div>
-        <h1>Homework Coach</h1>
+        <h1>Hi {activeChild.name}!</h1>
         <p>Let's learn something awesome today!</p>
+        <button className="switch-kid-btn" onClick={() => selectChild(null)}>
+          <RefreshCw size={14} /> {gradeLabel(activeChild.grade)} grade · not you?
+        </button>
       </header>
-
-      <div className="grade-selector">
-        <label>What grade are you in?</label>
-        <div className="grade-buttons">
-          {grades.map(grade => (
-            <button
-              key={grade}
-              className={`grade-btn ${selectedGrade === grade ? 'active' : ''}`}
-              onClick={() => setSelectedGrade(grade)}
-            >
-              {ordinal(grade)}
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="subject-grid">
         {subjects.map(subject => (
           <Link
             key={subject.id}
-            to={`/chat/${subject.id}?grade=${selectedGrade}`}
+            to={`/chat/${subject.id}`}
             className={`subject-card ${subject.id}`}
           >
             <div className="subject-icon">

@@ -8,132 +8,100 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 ## ✨ Features
 
 ### For Kids
-- **🧮 Math Coach** - Fractions, algebra, word problems with guided discovery
-- **📖 Reading & Writing Coach** - Essay help, comprehension, vocabulary building  
-- **🔬 Science Coach** - Explore how the world works through inquiry
-- **✨ Practice Mode** - Generate custom practice problems on any topic
-- **🎯 Grade-appropriate** - Content tailored for grades 3-8
 
-### For Parents
-- **📊 Weekly Dashboard** - See what subjects your child is working on
-- **⚠️ Struggle Alerts** - Know when they need extra support
-- **🛡️ Cheat Detection** - Redirects "just give me the answer" requests to learning
+- **🧮 Math Coach** - Fractions, algebra, word problems with guided discovery
+- **📖 Reading & Writing Coach** - Essay help, comprehension, vocabulary building
+- **🔬 Science Coach** - Explore how the world works through inquiry
+- **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
+- **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints
+- **⚡ Live streaming replies** - The coach starts "typing" instantly
+- **🎯 Grade-appropriate** - Each kid has a profile with their grade (3-8)
+
+### For Families
+
+- **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
+- **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
+- **📊 Weekly dashboard** - Sessions, per-subject activity, and per-kid summaries
+- **⚠️ Struggle signals** - Know when they need extra support
+- **🛡️ Answer-fishing detection** - Redirects "just give me the answer" requests back to learning
+- **💰 Daily budget** - A per-family token budget keeps API costs predictable
 
 ## 🚀 Deploy to Railway
 
-### Step 1: Push to GitHub
-```bash
-# Create a new GitHub repository, then:
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/homework-coach.git
-git push -u origin main
-```
-
-### Step 2: Deploy on Railway
-
-1. Go to [railway.app](https://railway.app) and sign in with GitHub
-2. Click **"New Project"** → **"Deploy from GitHub repo"**
-3. Select your `homework-coach` repository
-4. Railway will auto-detect the configuration
-
-### Step 3: Add Environment Variables
-
-In Railway dashboard:
-1. Click on your project
-2. Go to **Variables** tab
-3. Add: `ANTHROPIC_API_KEY` = your API key from [console.anthropic.com](https://console.anthropic.com)
-
-### Step 4: Get Your URL
-
-Railway will automatically generate a URL like `homework-coach-abc123.up.railway.app`
-
-That's it! Your app is live! 🎉
+1. Push this repo to GitHub
+2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
+3. Add a **volume** (so the database survives deploys) and mount it at `/data`
+4. Set environment variables:
+   - `ANTHROPIC_API_KEY` - from [console.anthropic.com](https://console.anthropic.com)
+   - `COOKIE_SECRET` - a long random string (`openssl rand -hex 32`)
+   - `DATABASE_PATH` - `/data/homework-coach.db` (to use the volume)
+5. Railway auto-detects the build via `nixpacks.toml` and gives you a URL
 
 ## 🔧 Local Development
 
 ### Prerequisites
-- Node.js 18 or higher
-- npm
+
+- Node.js 18+ and npm
 
 ### Setup
+
 ```bash
-# Clone the repo
-git clone https://github.com/YOUR_USERNAME/homework-coach.git
-cd homework-coach
+npm run install-all      # installs server + client dependencies
 
-# Install dependencies
-npm run install-all
+cp .env.example .env     # then add your ANTHROPIC_API_KEY
 
-# Create .env file
-cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
-
-# Start development servers
-npm run dev
+npm run dev              # server on :3001, Vite client on :3000
 ```
 
-The app will run at:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:3001
+### Scripts
 
-## 📱 Mobile Use
-
-This is a Progressive Web App optimized for mobile:
-1. Open the Railway URL on your phone
-2. Tap "Add to Home Screen" in your browser menu
-3. It works just like a native app!
-
-## 🛡️ Safety Features
-
-### Cheat Detection
-The app detects phrases like:
-- "Give me the answer"
-- "Just tell me"
-- "Do it for me"
-- "Help me cheat"
-
-When detected, it gently redirects kids back to learning mode.
-
-### Socratic Method
-Coaches never give direct answers. Instead, they:
-1. Ask guiding questions
-2. Break problems into steps
-3. Use relatable examples
-4. Celebrate effort, not just correct answers
+| Command                | What it does                              |
+| ---------------------- | ----------------------------------------- |
+| `npm run dev`          | Server + client dev servers, live reload  |
+| `npm test`             | API test suite (Vitest + Supertest)       |
+| `npm run lint`         | ESLint over server, client, and tests     |
+| `npm run format`       | Prettier over the repo                    |
+| `npm run build`        | Production client build (Vite → `client/dist`) |
 
 ## 🗂️ Project Structure
 
 ```
 homework-coach/
 ├── server/
-│   └── index.js          # Express backend + Claude API
+│   ├── index.js          # Bootstrap: env checks, db, listen
+│   ├── app.js            # Express app factory: routes, SSE chat, auth wiring
+│   ├── db.js             # SQLite schema (better-sqlite3)
+│   ├── auth.js           # Family cookies, PIN hashing, family codes
+│   ├── claude.js         # Claude client, model config, streaming
+│   └── prompts.js        # Coach personas + practice prompt
 ├── client/
-│   ├── public/
-│   │   └── index.html
+│   ├── index.html        # Vite entry
 │   └── src/
-│       ├── App.js        # Main app with routing
-│       ├── App.css       # All styles
+│       ├── App.jsx           # Routing + family gate
+│       ├── FamilyContext.jsx # Family/children/active-kid state
+│       ├── api.js            # fetch + SSE helpers
 │       └── components/
-│           ├── SubjectSelect.js   # Home screen
-│           ├── ChatRoom.js        # Tutoring chat
-│           ├── PracticeMode.js    # Problem generator
-│           └── ParentDashboard.js # Weekly summary
-├── package.json
-├── railway.toml          # Railway config
-└── nixpacks.toml         # Build config
+│           ├── FamilySetup.jsx    # Signup / sign-in
+│           ├── ChildPicker.jsx    # "Who's learning today?"
+│           ├── SubjectSelect.jsx  # Home screen
+│           ├── ChatRoom.jsx       # Streaming tutoring chat
+│           ├── PracticeMode.jsx   # Problem generator
+│           └── ParentDashboard.jsx# PIN-gated weekly summary
+├── tests/api.test.js     # API tests with a mocked Claude client
+└── .github/workflows/ci.yml
 ```
 
-## 🔮 Future Enhancements
+## 🛡️ Safety & Privacy
 
-- [ ] Spaced repetition quizzes
-- [ ] Reading comprehension companion
-- [ ] Progress streaks and badges
-- [ ] More subjects (history, languages)
-- [ ] Database for persistent data
-- [ ] Parent authentication
+- **Socratic method** - Coaches never hand over final answers; they ask guiding questions, break problems into steps, and celebrate effort.
+- **Answer-fishing detection** - "Just tell me the answer" gets a friendly redirect and shows up for parents as a tricky moment.
+- **Family isolation** - Every session, message, and struggle belongs to one family. There is no shared global state.
+- **Parent dashboard shows types, not transcripts** - Parents see *"Expressed confusion - math - Tuesday"*, never the kid's raw words.
+- **Hardening** - Helmet CSP, rate limits, input validation, per-family daily token budget, PIN-gated parent routes.
+
+## 🔮 Roadmap
+
+See [PLAN.md](./PLAN.md) - homework photo input, KaTeX math, interactive practice, smarter struggle detection, memory across sessions, streaks and spaced repetition are next.
 
 ## 📄 License
 
