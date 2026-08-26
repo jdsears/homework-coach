@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
@@ -1150,11 +1151,14 @@ export function createApp({
   });
 
   // ---------------------------------------------------------------------------
-  // Static client (production)
+  // Static client
   // ---------------------------------------------------------------------------
 
-  if (isProd) {
-    const clientDir = path.join(__dirname, '../client/dist');
+  // Served whenever the built client exists (production images always have it;
+  // dev uses the Vite server instead). Deliberately not gated on NODE_ENV: a
+  // missing platform variable once blanked the whole site with "Cannot GET /".
+  const clientDir = path.join(__dirname, '../client/dist');
+  if (fs.existsSync(path.join(clientDir, 'index.html'))) {
     app.use(express.static(clientDir));
     app.get('*', (req: Request, res: Response) => {
       res.sendFile(path.join(clientDir, 'index.html'));

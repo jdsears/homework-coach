@@ -1,10 +1,15 @@
+# No healthcheckPath in railway.toml on purpose: this service has a volume
+# (/data), and Railway attaches a volume to only one deployment at a time, so
+# a healthcheck-gated rollout can never become healthy while the old
+# deployment holds the volume.
+
 providers = ["node"]
 
 [variables]
-# Always compile better-sqlite3 against the image's own Node toolchain.
-# Downloaded prebuilt binaries can fail to load under the Nix-built Node,
-# which crashes the server at boot and fails the deploy healthcheck.
-npm_config_build_from_source = "true"
+# Declaring ANY [variables] section replaces nixpacks' node-provider defaults,
+# which is how NODE_ENV=production silently vanished from the image once and
+# blanked the site - so set it explicitly and keep this list complete.
+NODE_ENV = "production"
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "python3"]
