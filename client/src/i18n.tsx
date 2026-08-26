@@ -40,7 +40,6 @@ const en: Dict = {
   'setup.needKid': 'Add at least one kid so they have a profile to learn with!',
   'setup.createFailed': 'Could not create your family - please try again',
   'setup.signInFailed': 'Could not sign in - please try again',
-  'setup.grade': '{grade} grade',
   'setup.system': 'School system',
   'setup.systemUS': '🇺🇸 US grades',
   'setup.systemUK': '🇬🇧 UK years',
@@ -54,7 +53,7 @@ const en: Dict = {
 
   'home.hi': 'Hi {name}!',
   'home.tagline': "Let's learn something awesome today!",
-  'home.switchKid': '{grade} grade · not you?',
+  'home.switchKid': '{grade} · not you?',
   'home.customCoaches': 'Your custom coaches',
   'home.customCoachBy': 'Made for your family',
 
@@ -102,7 +101,7 @@ const en: Dict = {
   'subject.furthermaths.badge': 'GCSE',
 
   'chat.back': 'Back to subjects',
-  'chat.headerLine': '{name} · {grade} grade · {subject}',
+  'chat.headerLine': '{name} · {grade} · {subject}',
   'chat.welcome': "Hi {name}! I'm {coach}!",
   'chat.welcomeBody':
     "I'm here to help you learn - not just give you answers! Tell me what you're working on, or snap a photo of it. 🌟",
@@ -123,7 +122,7 @@ const en: Dict = {
   'chat.customStarter2': 'What should we work on first?',
 
   'practice.title': 'Practice Time!',
-  'practice.subtitle': 'Custom problems for {name} · {grade} grade',
+  'practice.subtitle': 'Custom problems for {name} · {grade}',
   'practice.subject': 'Subject',
   'practice.topic': 'Topic (optional)',
   'practice.topicPh': 'e.g., fractions, vocabulary, ecosystems...',
@@ -181,7 +180,8 @@ const en: Dict = {
   'parent.tricky': 'Tricky moments',
   'parent.last14': 'Last 14 days',
   'parent.kids': 'Your kids',
-  'parent.kidLine': '{grade} grade · {min} min · {msg} messages · {practice} practice',
+  'parent.kidLine': '{min} min · {msg} messages · {practice} practice',
+  'parent.kidYear': "{name}'s year or grade",
   'parent.addKidPh': 'Add a kid (first name)',
   'parent.addKid': 'Add kid',
   'parent.newKidName': 'New kid name',
@@ -273,7 +273,6 @@ const fr: Dict = {
   'setup.needKid': 'Ajoutez au moins un enfant pour créer son profil !',
   'setup.createFailed': 'Impossible de créer votre famille - réessayez',
   'setup.signInFailed': 'Connexion impossible - réessayez',
-  'setup.grade': '{grade}',
 
   'setup.system': 'Système scolaire',
   'setup.systemUS': '🇺🇸 Grades US',
@@ -415,7 +414,8 @@ const fr: Dict = {
   'parent.tricky': 'Moments délicats',
   'parent.last14': 'Les 14 derniers jours',
   'parent.kids': 'Vos enfants',
-  'parent.kidLine': '{grade} · {min} min · {msg} messages · {practice} exercices',
+  'parent.kidLine': '{min} min · {msg} messages · {practice} exercices',
+  'parent.kidYear': 'Niveau de {name}',
   'parent.addKidPh': 'Ajouter un enfant (prénom)',
   'parent.addKid': 'Ajouter',
   'parent.newKidName': 'Prénom du nouvel enfant',
@@ -507,7 +507,6 @@ const es: Dict = {
   'setup.needKid': '¡Añadan al menos un niño para crear su perfil!',
   'setup.createFailed': 'No se pudo crear la familia - inténtenlo de nuevo',
   'setup.signInFailed': 'No se pudo entrar - inténtenlo de nuevo',
-  'setup.grade': '{grade}',
 
   'setup.system': 'Sistema escolar',
   'setup.systemUS': '🇺🇸 Grados US',
@@ -649,7 +648,8 @@ const es: Dict = {
   'parent.tricky': 'Momentos difíciles',
   'parent.last14': 'Últimos 14 días',
   'parent.kids': 'Sus hijos',
-  'parent.kidLine': '{grade} · {min} min · {msg} mensajes · {practice} ejercicios',
+  'parent.kidLine': '{min} min · {msg} mensajes · {practice} ejercicios',
+  'parent.kidYear': 'Nivel de {name}',
   'parent.addKidPh': 'Añadir un niño (nombre)',
   'parent.addKid': 'Añadir',
   'parent.newKidName': 'Nombre del nuevo niño',
