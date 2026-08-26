@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { apiJson, gradeLabel } from '../api';
+import { useFamily } from '../FamilyContext';
 
 // Split the generated text into text segments and hidden hints.
 // Hint lines arrive from the server marked with a leading [HINT].
@@ -38,29 +40,27 @@ function Hint({ text }) {
 }
 
 function PracticeMode() {
+  const { activeChild } = useFamily();
   const [subject, setSubject] = useState('math');
-  const [grade, setGrade] = useState('5');
   const [topic, setTopic] = useState('');
   const [problems, setProblems] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  if (!activeChild) return null;
+
   const generateProblems = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/practice', {
+      const data = await apiJson('/api/practice', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, grade, topic: topic || subject }),
+        body: { childId: activeChild.id, subject, topic: topic || subject },
       });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Could not generate problems');
-      }
-      const data = await response.json();
       setProblems(data.problems);
     } catch (error) {
       console.error('Error:', error);
-      setProblems('Oops! Could not generate problems. Please try again.');
+      setProblems(
+        error.friendly ? error.message : 'Oops! Could not generate problems. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -71,14 +71,20 @@ function PracticeMode() {
       <header className="practice-header">
         <Sparkles size={40} />
         <h1>Practice Time!</h1>
-        <p>Get custom problems to sharpen your skills</p>
+        <p>
+          Custom problems for {activeChild.name} · {gradeLabel(activeChild.grade)} grade
+        </p>
       </header>
 
       <div className="practice-card">
         <div className="practice-options">
           <div>
-            <label>Subject</label>
-            <select value={subject} onChange={(e) => setSubject(e.target.value)}>
+            <label htmlFor="practice-subject">Subject</label>
+            <select
+              id="practice-subject"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+            >
               <option value="math">Math</option>
               <option value="reading">Reading & Writing</option>
               <option value="science">Science</option>
@@ -90,34 +96,19 @@ function PracticeMode() {
           </div>
 
           <div>
-            <label>Grade</label>
-            <select value={grade} onChange={(e) => setGrade(e.target.value)}>
-              <option value="3">3rd Grade</option>
-              <option value="4">4th Grade</option>
-              <option value="5">5th Grade</option>
-              <option value="6">6th Grade</option>
-              <option value="7">7th Grade</option>
-              <option value="8">8th Grade</option>
-            </select>
-          </div>
-
-          <div>
-            <label>Topic (optional)</label>
+            <label htmlFor="practice-topic">Topic (optional)</label>
             <input
+              id="practice-topic"
               type="text"
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
+              onChange={e => setTopic(e.target.value)}
               maxLength={100}
               placeholder="e.g., fractions, vocabulary, ecosystems..."
             />
           </div>
         </div>
 
-        <button
-          className="generate-btn"
-          onClick={generateProblems}
-          disabled={isLoading}
-        >
+        <button className="generate-btn" onClick={generateProblems} disabled={isLoading}>
           {isLoading ? (
             <>
               <RefreshCw size={20} className="spinning" /> Generating...

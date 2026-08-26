@@ -26,7 +26,7 @@ Kid-facing education products win on three fronts, and the phases below map to t
 
 ---
 
-## Phase 0 — Stop the bleeding (~1 day)
+## Phase 0 — Stop the bleeding (~1 day) — ✅ shipped in PR #1
 
 Small fixes that repair today's experience and close the worst holes. All are independent and low-risk.
 
@@ -40,9 +40,9 @@ Small fixes that repair today's experience and close the worst holes. All are in
 - [x] Flatten the repo so `package.json` and the Railway configs sit at the root (or document the Railway root-directory setting) — right now a fresh deploy from the repo root fails auto-detection.
 - [x] Re-enable pinch zoom (drop `maximum-scale=1, user-scalable=no`) — accessibility basics for a kids' app.
 
-## Phase 1 — Foundation: from demo to product (~1–2 weeks)
+## Phase 1 — Foundation: from demo to product (~1–2 weeks) — ✅ shipped in PR #2
 
-The unlock phase. Everything later depends on this.
+The unlock phase. Everything later depends on this. (Prompt caching intentionally waits for Phase 2's richer prompts; deploy note: the Railway service's Root Directory setting must be cleared after the Phase 0 repo flatten.)
 
 1. **Model + API upgrade.**
    - Move off `claude-sonnet-4-20250514` to the current generation, configurable via env var (`CLAUDE_MODEL`). Default to `claude-opus-5` ($5/$25 per MTok) for tutoring quality; `claude-sonnet-5` ($2/$10) is the budget alternative, and `claude-haiku-4-5` ($1/$5) powers cheap classifier calls in Phase 2. A typical tutoring turn is a few thousand input tokens, so even Opus lands around ~$0.02/turn.

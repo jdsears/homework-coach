@@ -1,0 +1,9 @@
+node_modules/
+client/node_modules/
+client/dist/
+client/build/
+data/
+package-lock.json
+client/package-lock.json
+PLAN.md
+README.md
