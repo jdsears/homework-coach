@@ -5,18 +5,76 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { z } = require('zod');
+const { zodOutputFormat } = require('@anthropic-ai/sdk/helpers/zod');
 
-const { SYSTEM_PROMPTS, CHEAT_REDIRECT, detectCheatAttempt, practicePrompt } = require('./prompts');
-const { streamChat, createCompletion, extractText, totalInputTokens } = require('./claude');
+const {
+  SYSTEM_PROMPTS,
+  CHEAT_REDIRECT,
+  detectCheatAttempt,
+  practiceSetPrompt,
+  CLASSIFIER_SYSTEM,
+  classifierUserPrompt,
+  GRADER_SYSTEM,
+  graderUserPrompt,
+  MEMORY_SYSTEM,
+  memoryUserPrompt,
+} = require('./prompts');
+const {
+  streamChat,
+  parseStructured,
+  fastParse,
+  extractText,
+  totalInputTokens,
+} = require('./claude');
 const auth = require('./auth');
 
 const GRADES = ['3', '4', '5', '6', '7', '8'];
 const HISTORY_WINDOW = 24; // messages sent to the model per turn
 const MAX_MESSAGE_CHARS = 2000;
+const MEMORY_EVERY_N_MESSAGES = 8; // refresh child memory this often per session
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_IMAGE_BASE64 = 5 * 1024 * 1024; // ~3.7MB of actual image
+const PHOTO_HISTORY_NOTE = '[The student attached a photo of their homework with this message]';
+
 const now = () => new Date().toISOString();
+
+// ---------------------------------------------------------------------------
+// Structured-output schemas
+// ---------------------------------------------------------------------------
+
+const PracticeSetSchema = z.object({
+  problems: z
+    .array(
+      z.object({
+        problem: z.string(),
+        hint: z.string(),
+        answer: z.string(),
+        explanation: z.string(),
+        difficulty: z.number(),
+      })
+    )
+    .min(1)
+    .max(5),
+});
+
+const GradeSchema = z.object({
+  correct: z.boolean(),
+  feedback: z.string(),
+});
+
+const ClassifierSchema = z.object({
+  answer_fishing: z.boolean(),
+  frustration: z.number(),
+  topic: z.string(),
+});
+
+const MemorySchema = z.object({
+  memory: z.string(),
+});
 
 function generateParentTip(strugglesBySubject) {
   const tips = [];
@@ -92,7 +150,7 @@ function createApp({ db, anthropic, config = {} }) {
     })
   );
   app.use(cors({ origin: allowedOrigins, credentials: true }));
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '6mb' })); // leaves room for a downscaled homework photo
   app.use(cookieParser(cookieSecret));
 
   if (rateLimits) {
@@ -134,17 +192,28 @@ function createApp({ db, anthropic, config = {} }) {
     ),
     childById: db.prepare('SELECT * FROM children WHERE id = ?'),
     updateChild: db.prepare('UPDATE children SET name = ?, grade = ? WHERE id = ?'),
+    updateChildMemory: db.prepare('UPDATE children SET memory = ? WHERE id = ?'),
     insertSession: db.prepare(
       'INSERT INTO sessions (id, child_id, subject, started_at, last_active_at) VALUES (?, ?, ?, ?, ?)'
     ),
     sessionById: db.prepare('SELECT * FROM sessions WHERE id = ?'),
     touchSession: db.prepare('UPDATE sessions SET last_active_at = ? WHERE id = ?'),
+    recentSessionsByChild: db.prepare(
+      `SELECT s.id, s.subject, s.started_at, s.last_active_at,
+              (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS messageCount,
+              (SELECT content FROM messages m WHERE m.session_id = s.id AND m.role = 'user' ORDER BY m.id LIMIT 1) AS preview
+       FROM sessions s WHERE s.child_id = ? ORDER BY s.last_active_at DESC LIMIT 5`
+    ),
     insertMessage: db.prepare(
-      'INSERT INTO messages (session_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO messages (session_id, role, content, input_tokens, output_tokens, created_at, has_image) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ),
     recentMessages: db.prepare(
-      'SELECT role, content FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?'
+      'SELECT role, content, has_image FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT ?'
     ),
+    sessionMessages: db.prepare(
+      'SELECT role, content, has_image, created_at FROM messages WHERE session_id = ? ORDER BY id'
+    ),
+    sessionMessageCount: db.prepare('SELECT COUNT(*) AS total FROM messages WHERE session_id = ?'),
     insertStruggle: db.prepare(
       'INSERT INTO struggles (session_id, subject, type, context, created_at) VALUES (?, ?, ?, ?, ?)'
     ),
@@ -153,6 +222,23 @@ function createApp({ db, anthropic, config = {} }) {
     ),
     familyTokensSince: db.prepare(
       'SELECT COALESCE(SUM(input_tokens + output_tokens), 0) AS total FROM usage_log WHERE family_id = ? AND created_at >= ?'
+    ),
+    insertProblem: db.prepare(
+      `INSERT INTO practice_problems (child_id, subject, topic, difficulty, problem, hint, answer, explanation, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ),
+    problemById: db.prepare('SELECT * FROM practice_problems WHERE id = ?'),
+    insertAttempt: db.prepare(
+      `INSERT INTO practice_attempts (child_id, subject, topic, difficulty, correct, problem, answer, problem_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ),
+    masteryGet: db.prepare(
+      'SELECT * FROM mastery WHERE child_id = ? AND subject = ? AND topic = ?'
+    ),
+    masteryUpsert: db.prepare(
+      `INSERT INTO mastery (child_id, subject, topic, score, attempts, updated_at) VALUES (?, ?, ?, ?, 1, ?)
+       ON CONFLICT(child_id, subject, topic) DO UPDATE SET
+         score = excluded.score, attempts = mastery.attempts + 1, updated_at = excluded.updated_at`
     ),
     weeklySessions: db.prepare(
       `SELECT COUNT(*) AS total FROM sessions s
@@ -196,6 +282,122 @@ function createApp({ db, anthropic, config = {} }) {
 
   const BUDGET_MESSAGE =
     "Wow, we've done a LOT of learning today! 🌟 The coaches need a rest - come back tomorrow!";
+
+  const logUsage = (familyId, kind, usage) => {
+    stmts.insertUsage.run(
+      familyId,
+      kind,
+      totalInputTokens(usage),
+      usage?.output_tokens || 0,
+      now()
+    );
+  };
+
+  const childForFamily = (childId, familyId) => {
+    const child = childId ? stmts.childById.get(childId) : null;
+    return child && child.family_id === familyId ? child : null;
+  };
+
+  const normalizeTopic = topic =>
+    String(topic || '')
+      .trim()
+      .toLowerCase()
+      .slice(0, 100);
+
+  // Fire-and-forget: label the new message, log honest struggle signals.
+  const classifyMessage = (session, subject, history, message, familyId) => {
+    fastParse(anthropic, {
+      system: CLASSIFIER_SYSTEM,
+      messages: [{ role: 'user', content: classifierUserPrompt(history, message) }],
+      format: zodOutputFormat(ClassifierSchema),
+      maxTokens: 300,
+    })
+      .then(response => {
+        logUsage(familyId, 'classifier', response.usage);
+        const result = response.parsed_output;
+        if (!result) return;
+        const topicNote = result.topic ? ` (${result.topic.slice(0, 50)})` : '';
+        if (result.answer_fishing) {
+          stmts.insertStruggle.run(
+            session.id,
+            subject,
+            'Tried to get direct answer',
+            `classifier${topicNote}`,
+            now()
+          );
+        }
+        if (result.frustration >= 2) {
+          stmts.insertStruggle.run(
+            session.id,
+            subject,
+            'Feeling frustrated',
+            `level ${result.frustration}${topicNote}`,
+            now()
+          );
+        }
+      })
+      .catch(error => console.warn('Classifier skipped:', error.message));
+  };
+
+  // Fire-and-forget: refresh the coach's memory of this child periodically.
+  const maybeUpdateMemory = (session, child, familyId) => {
+    const count = stmts.sessionMessageCount.get(session.id).total;
+    if (count === 0 || count % MEMORY_EVERY_N_MESSAGES !== 0) return;
+    const transcript = stmts.recentMessages
+      .all(session.id, MEMORY_EVERY_N_MESSAGES + 4)
+      .reverse()
+      .map(row => ({ role: row.role, content: row.content }));
+    fastParse(anthropic, {
+      system: MEMORY_SYSTEM,
+      messages: [
+        {
+          role: 'user',
+          content: memoryUserPrompt({
+            childName: child.name,
+            oldMemory: child.memory,
+            subject: session.subject,
+            transcript,
+          }),
+        },
+      ],
+      format: zodOutputFormat(MemorySchema),
+      maxTokens: 500,
+    })
+      .then(response => {
+        logUsage(familyId, 'memory', response.usage);
+        const memory = response.parsed_output?.memory;
+        if (memory) stmts.updateChildMemory.run(memory.slice(0, 2000), child.id);
+      })
+      .catch(error => console.warn('Memory update skipped:', error.message));
+  };
+
+  const buildSystemPrompt = (subject, child) => {
+    const studentContext =
+      `The student's name is ${child.name} and they are in grade ${child.grade}. ` +
+      'Use their name naturally now and then.' +
+      (child.memory
+        ? `\n\nWhat you remember about ${child.name} from earlier sessions: ${child.memory}`
+        : '');
+    return [
+      // Stable per-subject block first so prompt caching can kick in as prompts grow
+      { type: 'text', text: SYSTEM_PROMPTS[subject], cache_control: { type: 'ephemeral' } },
+      { type: 'text', text: studentContext },
+    ];
+  };
+
+  const masteryNoteFor = (child, subject, topic) => {
+    const row = stmts.masteryGet.get(child.id, subject, topic);
+    if (!row || row.attempts < 3) {
+      return 'Mix difficulties 1-2 with one stretch problem.';
+    }
+    if (row.score < 0.35) {
+      return `The student has found ${topic} tricky lately - keep problems gentle (difficulty 1, maybe one 2) and confidence-building.`;
+    }
+    if (row.score > 0.7) {
+      return `The student is strong at ${topic} - stretch them (difficulty 2-3).`;
+    }
+    return 'Mix difficulties 1-2 with one stretch problem.';
+  };
 
   // ---------------------------------------------------------------------------
   // Family & auth
@@ -316,14 +518,47 @@ function createApp({ db, anthropic, config = {} }) {
   });
 
   // ---------------------------------------------------------------------------
+  // Session history (resume where you left off)
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/sessions/recent', requireFamily, (req, res) => {
+    const child = childForFamily(req.query.childId, req.family.id);
+    if (!child) return res.status(400).json({ error: 'Pick who is learning first!' });
+    const sessions = stmts.recentSessionsByChild.all(child.id).map(session => ({
+      id: session.id,
+      subject: session.subject,
+      startedAt: session.started_at,
+      lastActiveAt: session.last_active_at,
+      messageCount: session.messageCount,
+      preview: (session.preview || '').slice(0, 80),
+    }));
+    res.json({ sessions });
+  });
+
+  app.get('/api/sessions/:id/messages', requireFamily, (req, res) => {
+    const session = stmts.sessionById.get(req.params.id);
+    const child = session && childForFamily(session.child_id, req.family.id);
+    if (!child) return res.status(404).json({ error: 'No such session' });
+    res.json({
+      sessionId: session.id,
+      subject: session.subject,
+      messages: stmts.sessionMessages.all(session.id).map(row => ({
+        role: row.role,
+        content: row.content,
+        hasImage: Boolean(row.has_image),
+      })),
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Tutoring chat (Server-Sent Events)
   // ---------------------------------------------------------------------------
 
   app.post('/api/chat', requireFamily, async (req, res) => {
-    const { childId, sessionId, subject, message } = req.body || {};
+    const { childId, sessionId, subject, message, image } = req.body || {};
 
-    const child = childId ? stmts.childById.get(childId) : null;
-    if (!child || child.family_id !== req.family.id) {
+    const child = childForFamily(childId, req.family.id);
+    if (!child) {
       return res.status(400).json({ error: 'Pick who is learning first!' });
     }
     if (!SYSTEM_PROMPTS[subject]) {
@@ -337,14 +572,29 @@ function createApp({ db, anthropic, config = {} }) {
         error: "That's a really long message! Try breaking it into smaller questions. 😊",
       });
     }
+    if (image) {
+      const okShape =
+        typeof image === 'object' &&
+        IMAGE_TYPES.includes(image.media_type) &&
+        typeof image.data === 'string' &&
+        image.data.length > 0 &&
+        image.data.length <= MAX_IMAGE_BASE64;
+      if (!okShape) {
+        return res
+          .status(400)
+          .json({ error: "That photo didn't come through - try taking it again!" });
+      }
+    }
     if (overBudget(req.family.id)) {
       return res.status(429).json({ error: BUDGET_MESSAGE });
     }
 
     let session = sessionId ? stmts.sessionById.get(sessionId) : null;
-    if (session) {
-      const sessionChild = stmts.childById.get(session.child_id);
-      if (!sessionChild || sessionChild.family_id !== req.family.id) session = null;
+    if (
+      session &&
+      (!childForFamily(session.child_id, req.family.id) || session.child_id !== child.id)
+    ) {
+      session = null;
     }
     if (!session) {
       session = { id: uuidv4(), child_id: child.id, subject };
@@ -353,25 +603,13 @@ function createApp({ db, anthropic, config = {} }) {
       stmts.touchSession.run(now(), session.id);
     }
 
-    stmts.insertMessage.run(session.id, 'user', message, 0, 0, now());
+    // History BEFORE this message, for the classifier's context
+    const priorHistory = stmts.recentMessages
+      .all(session.id, 6)
+      .reverse()
+      .map(row => ({ role: row.role, content: row.content }));
 
-    // Struggle heuristic (a semantic classifier replaces this in Phase 2).
-    const lowered = message.toLowerCase();
-    if (
-      lowered.includes("don't understand") ||
-      lowered.includes("don't get it") ||
-      lowered.includes('confused') ||
-      lowered.includes('stuck') ||
-      lowered.includes('give up')
-    ) {
-      stmts.insertStruggle.run(
-        session.id,
-        subject,
-        'Expressed confusion',
-        message.substring(0, 100),
-        now()
-      );
-    }
+    stmts.insertMessage.run(session.id, 'user', message, 0, 0, now(), image ? 1 : 0);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -387,12 +625,15 @@ function createApp({ db, anthropic, config = {} }) {
         message.substring(0, 100),
         now()
       );
-      stmts.insertMessage.run(session.id, 'assistant', CHEAT_REDIRECT, 0, 0, now());
+      stmts.insertMessage.run(session.id, 'assistant', CHEAT_REDIRECT, 0, 0, now(), 0);
       send('meta', { sessionId: session.id, cheatDetected: true });
       send('delta', { text: CHEAT_REDIRECT });
       send('done', { sessionId: session.id });
       return res.end();
     }
+
+    // Semantic labeling runs alongside the reply; it never blocks the stream.
+    classifyMessage(session, subject, priorHistory, message, req.family.id);
 
     send('meta', { sessionId: session.id });
 
@@ -400,14 +641,29 @@ function createApp({ db, anthropic, config = {} }) {
       const history = stmts.recentMessages
         .all(session.id, HISTORY_WINDOW)
         .reverse()
-        .map(row => ({ role: row.role, content: row.content }));
+        .map((row, index, rows) => {
+          const isCurrentTurn = index === rows.length - 1 && row.role === 'user';
+          if (isCurrentTurn && image) {
+            return {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: image.media_type, data: image.data },
+                },
+                { type: 'text', text: row.content },
+              ],
+            };
+          }
+          // Older photo turns replay as a text note - we don't store image bytes
+          const content = row.has_image ? `${PHOTO_HISTORY_NOTE}\n${row.content}` : row.content;
+          return { role: row.role, content };
+        });
 
-      const systemPrompt =
-        `${SYSTEM_PROMPTS[subject]}\n\n` +
-        `The student's name is ${child.name} and they are in grade ${child.grade}. ` +
-        'Use their name naturally now and then.';
-
-      const stream = streamChat(anthropic, { system: systemPrompt, messages: history });
+      const stream = streamChat(anthropic, {
+        system: buildSystemPrompt(subject, child),
+        messages: history,
+      });
       stream.on('text', text => send('delta', { text }));
       const final = await stream.finalMessage();
 
@@ -421,16 +677,17 @@ function createApp({ db, anthropic, config = {} }) {
       }
 
       const usage = final.usage || {};
-      const inputTokens = totalInputTokens(usage);
       stmts.insertMessage.run(
         session.id,
         'assistant',
         assistantText,
-        inputTokens,
+        totalInputTokens(usage),
         usage.output_tokens || 0,
-        now()
+        now(),
+        0
       );
-      stmts.insertUsage.run(req.family.id, 'chat', inputTokens, usage.output_tokens || 0, now());
+      logUsage(req.family.id, 'chat', usage);
+      maybeUpdateMemory(session, child, req.family.id);
 
       send('done', { sessionId: session.id });
       res.end();
@@ -442,44 +699,218 @@ function createApp({ db, anthropic, config = {} }) {
   });
 
   // ---------------------------------------------------------------------------
-  // Practice problems
+  // Interactive practice
   // ---------------------------------------------------------------------------
 
-  app.post('/api/practice', requireFamily, async (req, res) => {
+
+  app.post('/api/practice/generate', requireFamily, async (req, res) => {
     try {
       const { childId, subject, topic } = req.body || {};
 
-      const child = childId ? stmts.childById.get(childId) : null;
-      if (!child || child.family_id !== req.family.id) {
-        return res.status(400).json({ error: 'Pick who is practicing first!' });
-      }
-      if (!SYSTEM_PROMPTS[subject]) {
-        return res.status(400).json({ error: 'Unknown subject' });
-      }
+      const child = childForFamily(childId, req.family.id);
+      if (!child) return res.status(400).json({ error: 'Pick who is practicing first!' });
+      if (!SYSTEM_PROMPTS[subject]) return res.status(400).json({ error: 'Unknown subject' });
       if (topic && (typeof topic !== 'string' || topic.length > 100)) {
         return res.status(400).json({ error: 'That topic is a bit too long - try a shorter one!' });
       }
-      if (overBudget(req.family.id)) {
-        return res.status(429).json({ error: BUDGET_MESSAGE });
+      if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
+
+      const cleanTopic = normalizeTopic(topic || subject);
+      const response = await parseStructured(anthropic, {
+        system: SYSTEM_PROMPTS[subject],
+        messages: [
+          {
+            role: 'user',
+            content: practiceSetPrompt({
+              grade: child.grade,
+              subject,
+              topic: cleanTopic,
+              masteryNote: masteryNoteFor(child, subject, cleanTopic),
+            }),
+          },
+        ],
+        format: zodOutputFormat(PracticeSetSchema),
+        maxTokens: 2000,
+      });
+      logUsage(req.family.id, 'practice', response.usage);
+
+      const set = response.parsed_output;
+      if (!set?.problems?.length) {
+        return res.status(500).json({ error: 'Could not generate practice problems - try again!' });
       }
 
-      const response = await createCompletion(anthropic, {
-        system: SYSTEM_PROMPTS[subject],
-        messages: [{ role: 'user', content: practicePrompt(child.grade, topic || subject) }],
+      const ts = now();
+      const problems = set.problems.map(problem => {
+        const difficulty = Math.min(3, Math.max(1, Math.round(problem.difficulty || 1)));
+        const result = stmts.insertProblem.run(
+          child.id,
+          subject,
+          cleanTopic,
+          difficulty,
+          problem.problem,
+          problem.hint,
+          problem.answer,
+          problem.explanation,
+          ts
+        );
+        return {
+          id: result.lastInsertRowid,
+          problem: problem.problem,
+          hint: problem.hint,
+          difficulty,
+        };
       });
 
-      stmts.insertUsage.run(
-        req.family.id,
-        'practice',
-        totalInputTokens(response.usage),
-        response.usage?.output_tokens || 0,
-        now()
-      );
-
-      res.json({ problems: extractText(response) });
+      res.json({ topic: cleanTopic, problems });
     } catch (error) {
       console.error('Practice generation error:', error);
       res.status(500).json({ error: 'Could not generate practice problems' });
+    }
+  });
+
+  app.post('/api/practice/answer', requireFamily, async (req, res) => {
+    try {
+      const { problemId, answer } = req.body || {};
+      const problem = problemId ? stmts.problemById.get(problemId) : null;
+      const child = problem && childForFamily(problem.child_id, req.family.id);
+      if (!child) return res.status(404).json({ error: 'No such practice problem' });
+      if (!answer || typeof answer !== 'string' || answer.length > 300) {
+        return res.status(400).json({ error: 'Type an answer first!' });
+      }
+      if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
+
+      const response = await fastParse(anthropic, {
+        system: GRADER_SYSTEM,
+        messages: [
+          {
+            role: 'user',
+            content: graderUserPrompt({
+              problem: problem.problem,
+              answer: problem.answer,
+              studentAnswer: answer,
+              grade: child.grade,
+            }),
+          },
+        ],
+        format: zodOutputFormat(GradeSchema),
+        maxTokens: 300,
+      });
+      logUsage(req.family.id, 'grading', response.usage);
+
+      const grade = response.parsed_output;
+      if (!grade)
+        return res.status(500).json({ error: 'Could not check that answer - try again!' });
+
+      stmts.insertAttempt.run(
+        child.id,
+        problem.subject,
+        problem.topic,
+        problem.difficulty,
+        grade.correct ? 1 : 0,
+        problem.problem,
+        answer,
+        problem.id,
+        now()
+      );
+
+      // Nudge the mastery score: slow to rise, a little quicker to catch struggle
+      const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic);
+      const score = current ? current.score : 0.5;
+      const nextScore = Math.min(1, Math.max(0, score + (grade.correct ? 0.08 : -0.1)));
+      stmts.masteryUpsert.run(child.id, problem.subject, problem.topic, nextScore, now());
+
+      res.json({
+        correct: grade.correct,
+        feedback: grade.feedback,
+        explanation: grade.correct ? problem.explanation : null,
+      });
+    } catch (error) {
+      console.error('Practice grading error:', error);
+      res.status(500).json({ error: 'Could not check that answer' });
+    }
+  });
+
+  app.post('/api/practice/reveal', requireFamily, (req, res) => {
+    const { problemId } = req.body || {};
+    const problem = problemId ? stmts.problemById.get(problemId) : null;
+    const child = problem && childForFamily(problem.child_id, req.family.id);
+    if (!child) return res.status(404).json({ error: 'No such practice problem' });
+
+    // Giving up still teaches - show the answer WITH the explanation, and score it
+    stmts.insertAttempt.run(
+      child.id,
+      problem.subject,
+      problem.topic,
+      problem.difficulty,
+      0,
+      problem.problem,
+      '(revealed)',
+      problem.id,
+      now()
+    );
+    const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic);
+    const score = current ? current.score : 0.5;
+    stmts.masteryUpsert.run(
+      child.id,
+      problem.subject,
+      problem.topic,
+      Math.max(0, score - 0.06),
+      now()
+    );
+
+    res.json({ answer: problem.answer, explanation: problem.explanation });
+  });
+
+  app.post('/api/practice/similar', requireFamily, async (req, res) => {
+    try {
+      const { problemId } = req.body || {};
+      const original = problemId ? stmts.problemById.get(problemId) : null;
+      const child = original && childForFamily(original.child_id, req.family.id);
+      if (!child) return res.status(404).json({ error: 'No such practice problem' });
+      if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
+
+      const response = await parseStructured(anthropic, {
+        system: SYSTEM_PROMPTS[original.subject],
+        messages: [
+          {
+            role: 'user',
+            content:
+              `Create 1 practice problem very similar to this one (same skill, same difficulty ${original.difficulty}, different numbers/details) for a grade ${child.grade} student:\n\n` +
+              `${original.problem}\n\nProvide problem, hint, answer, explanation, difficulty as requested.`,
+          },
+        ],
+        format: zodOutputFormat(PracticeSetSchema),
+        maxTokens: 800,
+      });
+      logUsage(req.family.id, 'practice', response.usage);
+
+      const problem = response.parsed_output?.problems?.[0];
+      if (!problem)
+        return res.status(500).json({ error: 'Could not make a similar one - try again!' });
+
+      const result = stmts.insertProblem.run(
+        child.id,
+        original.subject,
+        original.topic,
+        original.difficulty,
+        problem.problem,
+        problem.hint,
+        problem.answer,
+        problem.explanation,
+        now()
+      );
+
+      res.json({
+        problem: {
+          id: result.lastInsertRowid,
+          problem: problem.problem,
+          hint: problem.hint,
+          difficulty: original.difficulty,
+        },
+      });
+    } catch (error) {
+      console.error('Similar problem error:', error);
+      res.status(500).json({ error: 'Could not make a similar one' });
     }
   });
 

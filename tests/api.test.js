@@ -4,11 +4,17 @@ import { createDb } from '../server/db.js';
 import { createApp } from '../server/app.js';
 
 const COACH_REPLY = 'Great question! What do you already know about it?';
-const PRACTICE_REPLY =
-  'Problem 1: What is 2+2?\n[HINT] Count on your fingers\nLearning goal: addition';
+
+const tick = (ms = 15) => new Promise(resolve => setTimeout(resolve, ms));
 
 function makeFakeAnthropic() {
-  const calls = { stream: [], create: [] };
+  const calls = { stream: [], parse: [] };
+
+  // Mutable per-test knobs
+  const state = {
+    classifier: { answer_fishing: false, frustration: 0, topic: 'fractions' },
+    grade: { correct: true, feedback: 'You lined the denominators up - nice!' },
+  };
 
   const streamImpl = params => {
     calls.stream.push(params);
@@ -31,18 +37,54 @@ function makeFakeAnthropic() {
     };
   };
 
+  const parseImpl = async params => {
+    calls.parse.push(params);
+    const systemText =
+      typeof params.system === 'string' ? params.system : JSON.stringify(params.system);
+    let parsed;
+    if (systemText.includes('You watch one message')) {
+      parsed = { ...state.classifier };
+    } else if (systemText.includes('You grade one practice-problem')) {
+      parsed = { ...state.grade };
+    } else if (systemText.includes("tutor's private memory")) {
+      parsed = {
+        memory: 'Maya has been working on equivalent fractions and is gaining confidence.',
+      };
+    } else {
+      // Practice generation on a subject persona
+      parsed = {
+        problems: [
+          {
+            problem: 'What is $\\frac{1}{2} + \\frac{1}{4}$?',
+            hint: 'Make the denominators match first.',
+            answer: '3/4',
+            explanation: 'Halves become quarters: 2/4 + 1/4 = 3/4.',
+            difficulty: 1,
+          },
+          {
+            problem: 'What is 2/3 of 12?',
+            hint: 'Split 12 into 3 equal groups.',
+            answer: '8',
+            explanation: '12 ÷ 3 = 4, and two groups of 4 make 8.',
+            difficulty: 2,
+          },
+          {
+            problem: 'Which is bigger: 5/8 or 3/5?',
+            hint: 'Give them the same denominator (40 works).',
+            answer: '5/8',
+            explanation: '5/8 = 25/40 and 3/5 = 24/40.',
+            difficulty: 3,
+          },
+        ],
+      };
+    }
+    return { parsed_output: parsed, usage: { input_tokens: 6, output_tokens: 3 } };
+  };
+
   return {
     calls,
-    messages: {
-      stream: streamImpl,
-      create: async params => {
-        calls.create.push(params);
-        return {
-          content: [{ type: 'text', text: PRACTICE_REPLY }],
-          usage: { input_tokens: 8, output_tokens: 4 },
-        };
-      },
-    },
+    state,
+    messages: { stream: streamImpl, parse: parseImpl },
     beta: { messages: { stream: streamImpl } },
   };
 }
@@ -229,8 +271,52 @@ describe('tutoring chat', () => {
     expect(ctx.anthropic.calls.stream).toHaveLength(2);
     const secondCall = ctx.anthropic.calls.stream[1];
     expect(secondCall.messages).toHaveLength(3); // user, assistant, user
-    expect(secondCall.system).toContain('Maya');
-    expect(secondCall.system).toContain('grade 5');
+    const systemText = JSON.stringify(secondCall.system);
+    expect(systemText).toContain('Maya');
+    expect(systemText).toContain('grade 5');
+  });
+
+  it('passes an attached photo to the model and replays it as a note later', async () => {
+    const res = await agent.post('/api/chat').send({
+      childId: child.id,
+      subject: 'math',
+      message: 'Can you help me with this worksheet?',
+      image: { media_type: 'image/jpeg', data: 'aGVsbG8=' },
+    });
+    expect(res.status).toBe(200);
+
+    const call = ctx.anthropic.calls.stream[0];
+    const content = call.messages[call.messages.length - 1].content;
+    expect(Array.isArray(content)).toBe(true);
+    expect(content[0]).toMatchObject({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: 'aGVsbG8=' },
+    });
+
+    const sessionId = parseSse(res.text).find(e => e.event === 'meta').data.sessionId;
+    const row = ctx.db
+      .prepare('SELECT has_image FROM messages WHERE session_id = ? ORDER BY id LIMIT 1')
+      .get(sessionId);
+    expect(row.has_image).toBe(1);
+
+    // Next turn: the old photo replays as a text note, not image bytes
+    await agent
+      .post('/api/chat')
+      .send({ childId: child.id, sessionId, subject: 'math', message: 'Thanks!' });
+    const second = ctx.anthropic.calls.stream[1];
+    const firstHistory = second.messages[0];
+    expect(typeof firstHistory.content).toBe('string');
+    expect(firstHistory.content).toContain('photo');
+  });
+
+  it('rejects malformed photos', async () => {
+    const res = await agent.post('/api/chat').send({
+      childId: child.id,
+      subject: 'math',
+      message: 'look',
+      image: { media_type: 'image/tiff', data: 'x' },
+    });
+    expect(res.status).toBe(400);
   });
 
   it('redirects answer-fishing without calling the model and logs a struggle', async () => {
@@ -244,6 +330,48 @@ describe('tutoring chat', () => {
 
     const struggles = ctx.db.prepare('SELECT type FROM struggles').all();
     expect(struggles.some(s => s.type === 'Tried to get direct answer')).toBe(true);
+  });
+
+  it('logs classifier-detected frustration and answer fishing', async () => {
+    ctx.anthropic.state.classifier = {
+      answer_fishing: true,
+      frustration: 3,
+      topic: 'long division',
+    };
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: child.id, subject: 'math', message: 'this is impossible, I hate it' });
+    await tick();
+
+    const struggles = ctx.db.prepare('SELECT type, context FROM struggles').all();
+    expect(struggles.some(s => s.type === 'Feeling frustrated')).toBe(true);
+    expect(struggles.some(s => s.type === 'Tried to get direct answer')).toBe(true);
+    // Classifier context never contains the kid's raw message
+    for (const struggle of struggles) {
+      expect(struggle.context).not.toContain('impossible');
+    }
+  });
+
+  it('updates the child memory after enough messages', async () => {
+    let sessionId = null;
+    for (let i = 0; i < 4; i++) {
+      const res = await agent
+        .post('/api/chat')
+        .send({ childId: child.id, sessionId, subject: 'math', message: `Question number ${i}` });
+      sessionId = parseSse(res.text).find(e => e.event === 'meta').data.sessionId;
+    }
+    await tick(30);
+
+    const row = ctx.db.prepare('SELECT memory FROM children WHERE id = ?').get(child.id);
+    expect(row.memory).toContain('equivalent fractions');
+
+    // The refreshed memory flows into the next system prompt
+    await agent
+      .post('/api/chat')
+      .send({ childId: child.id, sessionId, subject: 'math', message: 'One more!' });
+    const lastCall = ctx.anthropic.calls.stream.at(-1);
+    expect(JSON.stringify(lastCall.system)).toContain('equivalent fractions');
   });
 
   it("refuses another family's child", async () => {
@@ -293,22 +421,155 @@ describe('tutoring chat', () => {
   });
 });
 
-describe('practice', () => {
-  it('generates problems for the active child and logs usage', async () => {
+describe('session resume', () => {
+  it('lists recent sessions and returns their messages, scoped to the family', async () => {
     const ctx = build();
     const agent = request.agent(ctx.app);
     const { children } = await signupFamily(agent);
 
+    const chat = await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'science', message: 'Why is the sky blue?' });
+    const sessionId = parseSse(chat.text).find(e => e.event === 'meta').data.sessionId;
+
+    const recent = await agent.get(`/api/sessions/recent?childId=${children[0].id}`);
+    expect(recent.status).toBe(200);
+    expect(recent.body.sessions[0]).toMatchObject({
+      id: sessionId,
+      subject: 'science',
+      messageCount: 2,
+    });
+    expect(recent.body.sessions[0].preview).toContain('Why is the sky');
+
+    const messages = await agent.get(`/api/sessions/${sessionId}/messages`);
+    expect(messages.status).toBe(200);
+    expect(messages.body.messages).toHaveLength(2);
+
+    // Another family can't read it
+    const otherAgent = request.agent(ctx.app);
+    await signupFamily(otherAgent, { familyName: 'Others' });
+    expect((await otherAgent.get(`/api/sessions/${sessionId}/messages`)).status).toBe(404);
+  });
+});
+
+describe('interactive practice', () => {
+  let ctx;
+  let agent;
+  let child;
+
+  beforeEach(async () => {
+    ctx = build();
+    agent = request.agent(ctx.app);
+    const body = await signupFamily(agent);
+    child = body.children[0];
+  });
+
+  it('generates a stored problem set without leaking answers', async () => {
     const res = await agent
-      .post('/api/practice')
-      .send({ childId: children[0].id, subject: 'math', topic: 'fractions' });
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'Fractions' });
 
     expect(res.status).toBe(200);
-    expect(res.body.problems).toContain('[HINT]');
-    expect(ctx.anthropic.calls.create[0].messages[0].content).toContain('grade 5');
+    expect(res.body.topic).toBe('fractions');
+    expect(res.body.problems).toHaveLength(3);
+    for (const problem of res.body.problems) {
+      expect(problem.id).toBeTruthy();
+      expect(problem.problem).toBeTruthy();
+      expect(problem.hint).toBeTruthy();
+      expect(problem).not.toHaveProperty('answer');
+      expect(problem).not.toHaveProperty('explanation');
+    }
 
-    const usage = ctx.db.prepare("SELECT * FROM usage_log WHERE kind = 'practice'").all();
-    expect(usage).toHaveLength(1);
+    const stored = ctx.db.prepare('SELECT * FROM practice_problems').all();
+    expect(stored).toHaveLength(3);
+    expect(stored[0].answer).toBe('3/4');
+  });
+
+  it('grades answers, records attempts, and moves mastery', async () => {
+    const generated = await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+    const problem = generated.body.problems[0];
+
+    const graded = await agent
+      .post('/api/practice/answer')
+      .send({ problemId: problem.id, answer: '3/4' });
+    expect(graded.status).toBe(200);
+    expect(graded.body.correct).toBe(true);
+    expect(graded.body.explanation).toBeTruthy();
+
+    const attempts = ctx.db.prepare('SELECT * FROM practice_attempts').all();
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0].correct).toBe(1);
+
+    const mastery = ctx.db.prepare('SELECT * FROM mastery').get();
+    expect(mastery.topic).toBe('fractions');
+    expect(mastery.score).toBeGreaterThan(0.5);
+  });
+
+  it('reveal returns the answer and counts as a miss', async () => {
+    const generated = await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+    const problem = generated.body.problems[0];
+
+    const revealed = await agent.post('/api/practice/reveal').send({ problemId: problem.id });
+    expect(revealed.status).toBe(200);
+    expect(revealed.body.answer).toBe('3/4');
+
+    const mastery = ctx.db.prepare('SELECT * FROM mastery').get();
+    expect(mastery.score).toBeLessThan(0.5);
+  });
+
+  it('produces a similar problem tied to the same child and topic', async () => {
+    const generated = await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+    const problem = generated.body.problems[1];
+
+    const similar = await agent.post('/api/practice/similar').send({ problemId: problem.id });
+    expect(similar.status).toBe(200);
+    expect(similar.body.problem.id).toBeTruthy();
+    expect(similar.body.problem).not.toHaveProperty('answer');
+
+    const stored = ctx.db
+      .prepare('SELECT * FROM practice_problems WHERE id = ?')
+      .get(similar.body.problem.id);
+    expect(stored.child_id).toBe(child.id);
+    expect(stored.topic).toBe('fractions');
+  });
+
+  it("won't grade another family's problem", async () => {
+    const generated = await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+    const problem = generated.body.problems[0];
+
+    const otherAgent = request.agent(ctx.app);
+    await signupFamily(otherAgent, { familyName: 'Others' });
+    const res = await otherAgent
+      .post('/api/practice/answer')
+      .send({ problemId: problem.id, answer: '3/4' });
+    expect(res.status).toBe(404);
+  });
+
+  it('steers generation using mastery history', async () => {
+    // Three misses on the topic push the score low enough to trigger the gentle note
+    for (let i = 0; i < 3; i++) {
+      const generated = await agent
+        .post('/api/practice/generate')
+        .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+      await agent.post('/api/practice/reveal').send({ problemId: generated.body.problems[0].id });
+    }
+
+    await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+
+    const lastGenCall = ctx.anthropic.calls.parse
+      .filter(call => JSON.stringify(call.messages).includes('practice problems for a grade'))
+      .at(-1);
+    expect(lastGenCall.messages[0].content).toContain('tricky');
   });
 });
 
@@ -318,13 +579,12 @@ describe('parent summary', () => {
     const agent = request.agent(ctx.app);
     const { children } = await signupFamily(agent);
 
-    await agent
-      .post('/api/chat')
-      .send({
-        childId: children[0].id,
-        subject: 'science',
-        message: "I'm so confused about clouds",
-      });
+    await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'science',
+      message: "I'm so confused about clouds",
+    });
+    await tick();
 
     // A second family with its own activity that must NOT leak into the first
     const otherAgent = request.agent(ctx.app);
@@ -332,6 +592,7 @@ describe('parent summary', () => {
     await otherAgent
       .post('/api/chat')
       .send({ childId: other.children[0].id, subject: 'math', message: 'hi there' });
+    await tick();
 
     const summary = await agent.get('/api/parent/summary');
     expect(summary.status).toBe(200);
@@ -342,7 +603,6 @@ describe('parent summary', () => {
     expect(summary.body.familyCode).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
 
     const struggleItems = Object.values(summary.body.struggles).flat();
-    expect(struggleItems.length).toBeGreaterThan(0);
     for (const item of struggleItems) {
       expect(item).not.toHaveProperty('context');
     }

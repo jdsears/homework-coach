@@ -67,12 +67,45 @@ CREATE TABLE IF NOT EXISTS usage_log (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS practice_problems (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id TEXT NOT NULL REFERENCES children(id),
+  subject TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  difficulty INTEGER NOT NULL DEFAULT 1,
+  problem TEXT NOT NULL,
+  hint TEXT NOT NULL DEFAULT '',
+  answer TEXT NOT NULL DEFAULT '',
+  explanation TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mastery (
+  child_id TEXT NOT NULL REFERENCES children(id),
+  subject TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  score REAL NOT NULL DEFAULT 0.5,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (child_id, subject, topic)
+);
+
 CREATE INDEX IF NOT EXISTS idx_children_family ON children(family_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_child ON sessions(child_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_struggles_session ON struggles(session_id);
 CREATE INDEX IF NOT EXISTS idx_usage_family_time ON usage_log(family_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_practice_problems_child ON practice_problems(child_id);
+CREATE INDEX IF NOT EXISTS idx_practice_attempts_child ON practice_attempts(child_id);
 `;
+
+// Additive migrations for columns that arrived after a table already shipped.
+function ensureColumn(db, table, column, ddl) {
+  const columns = db.pragma(`table_info(${table})`).map(col => col.name);
+  if (!columns.includes(column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  }
+}
 
 function createDb(dbPath) {
   if (dbPath !== ':memory:') {
@@ -82,6 +115,11 @@ function createDb(dbPath) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+
+  ensureColumn(db, 'children', 'memory', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'messages', 'has_image', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'practice_attempts', 'problem_id', 'INTEGER');
+
   return db;
 }
 

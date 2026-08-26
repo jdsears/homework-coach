@@ -24,11 +24,12 @@ export async function apiJson(path, options = {}) {
 
 // POST /api/chat and consume the Server-Sent Events stream.
 // onMeta gets { sessionId, cheatDetected? } early; onDelta gets each text chunk.
-export async function streamChat({ childId, sessionId, subject, message, onMeta, onDelta }) {
+// image (optional): { media_type, data } - base64 without the data: prefix.
+export async function streamChat({ childId, sessionId, subject, message, image, onMeta, onDelta }) {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ childId, sessionId, subject, message }),
+    body: JSON.stringify({ childId, sessionId, subject, message, image }),
   });
 
   const contentType = response.headers.get('content-type') || '';
@@ -84,3 +85,21 @@ export async function streamChat({ childId, sessionId, subject, message, onMeta,
 }
 
 export const gradeLabel = grade => (String(grade) === '3' ? '3rd' : `${grade}th`);
+
+// Downscale a photo for the API: max ~1568px on the long edge is the sweet
+// spot for Claude vision. Returns { media_type, data, previewUrl }.
+export async function fileToApiImage(file, maxEdge = 1568) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+
+  const previewUrl = canvas.toDataURL('image/jpeg', 0.82);
+  return { media_type: 'image/jpeg', data: previewUrl.split(',')[1], previewUrl };
+}
