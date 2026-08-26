@@ -1,9 +1,14 @@
+# No healthcheckPath here on purpose: this service has a volume (/data), and
+# Railway attaches a volume to only one deployment at a time. A healthcheck
+# makes Railway keep the old deployment running until the new one is healthy,
+# but the new one can't start while the old one holds the volume - so every
+# redeploy times out. Without a healthcheck, the old container stops first
+# (a few seconds of downtime) and the new one takes the volume.
+
 [build]
 builder = "nixpacks"
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/"
-healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
