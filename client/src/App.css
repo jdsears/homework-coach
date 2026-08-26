@@ -1263,6 +1263,29 @@ h2 {
   font-size: 0.9rem;
 }
 
+.kid-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.kid-grade-select {
+  padding: 4px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-full);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.kid-grade-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
 .add-kid-form {
   display: flex;
   gap: var(--space-sm);
@@ -2034,7 +2057,8 @@ body.reading-font textarea {
 .add-kid-form select,
 .kid-row select,
 .practice-options select,
-.settings-row select {
+.settings-row select,
+.kid-grade-select {
   appearance: none;
   -webkit-appearance: none;
   background-color: white;
@@ -2043,6 +2067,12 @@ body.reading-font textarea {
   background-position: right 12px center;
   padding-right: 36px;
   cursor: pointer;
+}
+
+/* The per-kid year pill is smaller, so tuck its chevron in */
+.kid-grade-select {
+  background-position: right 8px center;
+  padding-right: 26px;
 }
 
 .lang-corner select {

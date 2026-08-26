@@ -180,6 +180,16 @@ function ParentDashboard() {
     }
   };
 
+  const changeKidGrade = async (id: string, grade: string) => {
+    try {
+      await apiJson(`/api/children/${id}`, { method: 'PATCH', body: { grade } });
+      await refresh();
+      fetchSummary();
+    } catch (error) {
+      if (isApiError(error) && error.needPin) setNeedPin(true);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -314,9 +324,20 @@ function ParentDashboard() {
           <div key={kid.id} className="kid-summary">
             <div className="kid-summary-row">
               <strong>{kid.name}</strong>
-              <span>
+              <span className="kid-line">
+                <select
+                  className="kid-grade-select"
+                  value={kid.grade}
+                  onChange={e => changeKidGrade(kid.id, e.target.value)}
+                  aria-label={t('parent.kidYear', { name: kid.name })}
+                >
+                  {(grades.includes(kid.grade) ? grades : [kid.grade, ...grades]).map(grade => (
+                    <option key={grade} value={grade}>
+                      {gradeLabel(grade)}
+                    </option>
+                  ))}
+                </select>
                 {t('parent.kidLine', {
-                  grade: gradeLabel(kid.grade),
                   min: kid.minutes,
                   msg: kid.messageCount,
                   practice: kid.practiceCount,
