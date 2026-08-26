@@ -21,7 +21,7 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 ### For Families
 
 - **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
-- **🇺🇸🇬🇧 US or UK school system** - Pick at signup (or switch in parent settings): UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs and A-levels in the core subjects), and the Further Maths coach
+- **🇺🇸🇬🇧 UK or US school system** - UK is the default; pick at signup or switch in parent settings. UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs and A-levels in the core subjects), and the Further Maths coach
 - **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
 - **📊 Weekly dashboard** - Time-on-task, per-kid mastery, a 14-day activity chart, and an optional Sunday email digest
 - **🤖 Custom coaches** - Create a coach for anything (chess, coding, piano); they follow the same guide-not-tell rules

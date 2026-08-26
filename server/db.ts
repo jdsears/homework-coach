@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS families (
   code TEXT NOT NULL UNIQUE,
   pin_hash TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  curriculum TEXT NOT NULL DEFAULT 'us'
+  curriculum TEXT NOT NULL DEFAULT 'uk'
 );
 
 CREATE TABLE IF NOT EXISTS children (
@@ -149,7 +149,7 @@ export function createDb(dbPath: string): Database.Database {
   ensureColumn(db, 'messages', 'has_image', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'practice_attempts', 'problem_id', 'INTEGER');
   ensureColumn(db, 'families', 'digest_email', "TEXT NOT NULL DEFAULT ''");
-  ensureColumn(db, 'families', 'curriculum', "TEXT NOT NULL DEFAULT 'us'");
+  ensureColumn(db, 'families', 'curriculum', "TEXT NOT NULL DEFAULT 'uk'");
 
   return db;
 }

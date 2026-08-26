@@ -1,5 +1,11 @@
 providers = ["node"]
 
+[variables]
+# Always compile better-sqlite3 against the image's own Node toolchain.
+# Downloaded prebuilt binaries can fail to load under the Nix-built Node,
+# which crashes the server at boot and fails the deploy healthcheck.
+npm_config_build_from_source = "true"
+
 [phases.setup]
 nixPkgs = ["nodejs_22", "python3"]
 aptPkgs = ["build-essential"]

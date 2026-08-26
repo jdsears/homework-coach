@@ -77,7 +77,7 @@ function FamilySetup() {
   const { refresh } = useFamily();
   const { t, lang, setLang } = useI18n();
   const [mode, setMode] = useState<'signup' | 'login'>('signup');
-  const [curriculum, setCurriculum] = useState<Curriculum>('us');
+  const [curriculum, setCurriculum] = useState<Curriculum>('uk');
   const [familyName, setFamilyName] = useState('');
   const [pin, setPin] = useState('');
   const [kids, setKids] = useState<KidInput[]>([{ name: '', grade: '5' }]);
@@ -195,20 +195,20 @@ function FamilySetup() {
                 <button
                   type="button"
                   role="radio"
-                  aria-checked={curriculum === 'us'}
-                  className={`tab-btn ${curriculum === 'us' ? 'active' : ''}`}
-                  onClick={() => setCurriculum('us')}
-                >
-                  {t('setup.systemUS')}
-                </button>
-                <button
-                  type="button"
-                  role="radio"
                   aria-checked={curriculum === 'uk'}
                   className={`tab-btn ${curriculum === 'uk' ? 'active' : ''}`}
                   onClick={() => setCurriculum('uk')}
                 >
                   {t('setup.systemUK')}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={curriculum === 'us'}
+                  className={`tab-btn ${curriculum === 'us' ? 'active' : ''}`}
+                  onClick={() => setCurriculum('us')}
+                >
+                  {t('setup.systemUS')}
                 </button>
               </div>
               <span className="field-note">

@@ -762,7 +762,7 @@ export function useI18n(): I18nValue {
 export function useGradeLabel(curriculumOverride?: Curriculum): (grade: string) => string {
   const { lang } = useI18n();
   const { family } = useFamily();
-  const curriculum = curriculumOverride ?? family?.curriculum ?? 'us';
+  const curriculum = curriculumOverride ?? family?.curriculum ?? 'uk';
   return (grade: string) => {
     if (curriculum === 'uk') return `Year ${grade}`;
     if (lang === 'fr') return `niveau ${grade}`;
