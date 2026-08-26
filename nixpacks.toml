@@ -1,7 +1,8 @@
 providers = ["node"]
 
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_22", "python3"]
+aptPkgs = ["build-essential"]
 
 [phases.install]
 cmds = ["npm install", "cd client && npm install"]
