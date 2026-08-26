@@ -15,3 +15,6 @@ data/
 # Logs & OS noise
 *.log
 .DS_Store
+
+# Compiled server output
+server-dist/

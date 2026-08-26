@@ -2,18 +2,21 @@ import { useEffect, useState } from 'react';
 import { Flame, Star, Target, X } from 'lucide-react';
 import { apiJson } from '../api';
 import { useFamily } from '../FamilyContext';
+import { useI18n } from '../i18n';
+import type { Badge, Progress } from '../types';
 
 // Streak, level, daily challenge, and trophies for the home screen.
 function ProgressStrip() {
   const { activeChild } = useFamily();
-  const [progress, setProgress] = useState(null);
-  const [newBadges, setNewBadges] = useState([]);
+  const { t } = useI18n();
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [newBadges, setNewBadges] = useState<Badge[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     if (!activeChild) return undefined;
 
-    apiJson(`/api/progress?childId=${activeChild.id}`)
+    apiJson<Progress>(`/api/progress?childId=${activeChild.id}`)
       .then(data => {
         if (cancelled) return;
         setProgress(data);
@@ -22,7 +25,7 @@ function ProgressStrip() {
         const storageKey = `hc_badges_${activeChild.id}`;
         const earned = data.badges.filter(badge => badge.earned).map(badge => badge.id);
         try {
-          const seen = JSON.parse(localStorage.getItem(storageKey) || '[]');
+          const seen = JSON.parse(localStorage.getItem(storageKey) || '[]') as string[];
           const fresh = data.badges.filter(badge => badge.earned && !seen.includes(badge.id));
           if (seen.length && fresh.length) setNewBadges(fresh);
           localStorage.setItem(storageKey, JSON.stringify(earned));
@@ -37,32 +40,39 @@ function ProgressStrip() {
     };
   }, [activeChild]);
 
-  if (!progress) return null;
+  if (!progress || !activeChild) return null;
 
   const earnedBadges = progress.badges.filter(badge => badge.earned);
+
+  // Rebuild the challenge title locally so it follows the interface language
+  const challengeTitle = progress.challenge.topic
+    ? t('progress.challengeTopic', { topic: progress.challenge.topic })
+    : t('progress.challengeSubject', { subject: t(`subject.${progress.challenge.subject}.name`) });
 
   return (
     <div className="progress-strip">
       {newBadges.length > 0 && (
         <div className="new-badge-banner">
-          🎉 New trophy: {newBadges.map(badge => `${badge.emoji} ${badge.name}`).join(', ')}!
-          <button onClick={() => setNewBadges([])} aria-label="Dismiss">
+          {t('progress.newTrophy', {
+            names: newBadges.map(badge => `${badge.emoji} ${badge.name}`).join(', '),
+          })}
+          <button onClick={() => setNewBadges([])} aria-label={t('progress.dismiss')}>
             <X size={16} />
           </button>
         </div>
       )}
 
       <div className="progress-row">
-        <div className="progress-stat" title="Days in a row of learning">
+        <div className="progress-stat" title={t('progress.streakTitle')}>
           <Flame size={18} className={progress.streak > 0 ? 'flame-lit' : ''} />
-          <strong>{progress.streak}</strong> day{progress.streak === 1 ? '' : 's'}
+          <strong>{t('progress.streak', { n: progress.streak })}</strong>
         </div>
         <div
           className="progress-stat level-stat"
-          title={`${progress.intoLevel}/${progress.levelSize} XP into this level`}
+          title={t('progress.xpTitle', { into: progress.intoLevel, size: progress.levelSize })}
         >
           <Star size={18} />
-          <strong>Level {progress.level}</strong>
+          <strong>{t('progress.level', { n: progress.level })}</strong>
           <span className="xp-bar" aria-hidden="true">
             <span
               className="xp-fill"
@@ -76,13 +86,17 @@ function ProgressStrip() {
         <Target size={16} />
         <span>
           {progress.challenge.done
-            ? `Challenge complete! ${progress.challenge.title} ✔`
-            : `Today's challenge: ${progress.challenge.title} (${progress.challenge.progress}/${progress.challenge.goal})`}
+            ? t('progress.challengeDone', { title: challengeTitle })
+            : t('progress.challengeTodo', {
+                title: challengeTitle,
+                p: progress.challenge.progress,
+                g: progress.challenge.goal,
+              })}
         </span>
       </div>
 
       {earnedBadges.length > 0 && (
-        <div className="trophy-row" aria-label="Trophies earned">
+        <div className="trophy-row" aria-label={t('progress.trophies')}>
           {earnedBadges.map(badge => (
             <span key={badge.id} className="trophy" title={`${badge.name} - ${badge.description}`}>
               {badge.emoji}

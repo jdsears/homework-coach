@@ -21,10 +21,11 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 
 - **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
 - **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
-- **📊 Weekly dashboard** - Sessions, per-subject activity, and per-kid summaries
-- **⚠️ Struggle signals** - Know when they need extra support
-- **🛡️ Answer-fishing detection** - Redirects "just give me the answer" requests back to learning
+- **📊 Weekly dashboard** - Time-on-task, per-kid mastery, a 14-day activity chart, and an optional Sunday email digest
+- **🤖 Custom coaches** - Create a coach for anything (chess, coding, piano); they follow the same guide-not-tell rules
+- **⚠️ Smart struggle signals** - A classifier spots frustration and answer-fishing, no keyword false alarms
 - **💰 Daily budget** - A per-family token budget keeps API costs predictable
+- **🌍 Interface in English, français, or español** - plus an easy-reading (Lexend) font toggle
 
 ## 🚀 Deploy to Railway
 
@@ -57,9 +58,11 @@ npm run dev              # server on :3001, Vite client on :3000
 
 | Command                | What it does                              |
 | ---------------------- | ----------------------------------------- |
-| `npm run dev`          | Server + client dev servers, live reload  |
-| `npm test`             | API test suite (Vitest + Supertest)       |
+| `npm run dev`          | Server (tsx watch) + client dev servers   |
+| `npm test`             | Test suite (Vitest + Supertest, mocked Claude) |
 | `npm run lint`         | ESLint over server, client, and tests     |
+| `npm run typecheck`    | TypeScript check of the server            |
+| `npm run build:server` | Compile the server to `server-dist/`      |
 | `npm run format`       | Prettier over the repo                    |
 | `npm run build`        | Production client build (Vite → `client/dist`) |
 
@@ -67,28 +70,26 @@ npm run dev              # server on :3001, Vite client on :3000
 
 ```
 homework-coach/
-├── server/
-│   ├── index.js          # Bootstrap: env checks, db, listen
-│   ├── app.js            # Express app factory: routes, SSE chat, auth wiring
-│   ├── db.js             # SQLite schema (better-sqlite3)
-│   ├── auth.js           # Family cookies, PIN hashing, family codes
-│   ├── claude.js         # Claude client, model config, streaming
-│   └── prompts.js        # Coach personas + practice prompt
-├── client/
-│   ├── index.html        # Vite entry
+├── server/               # TypeScript, compiled to server-dist/ for prod
+│   ├── index.ts          # Bootstrap: env checks, Sentry (opt), digests, listen
+│   ├── app.ts            # Express app factory: routes, SSE chat, personas
+│   ├── db.ts             # SQLite schema + additive migrations
+│   ├── auth.ts           # Family cookies, PIN hashing, family codes
+│   ├── claude.ts         # Claude client, model routing, streaming
+│   ├── prompts.ts        # Coach personas + classifier/grader/memory prompts
+│   ├── gamification.ts   # XP, streaks, badges, daily challenge (pure)
+│   ├── reporting.ts      # Summaries, progress, digest HTML
+│   ├── mailer.ts         # SMTP digests + Sunday scheduler
+│   └── logger.ts         # pino structured logging
+├── client/               # React + TypeScript + Vite (PWA)
 │   └── src/
-│       ├── App.jsx           # Routing + family gate
-│       ├── FamilyContext.jsx # Family/children/active-kid state
-│       ├── api.js            # fetch + SSE helpers
-│       └── components/
-│           ├── FamilySetup.jsx    # Signup / sign-in
-│           ├── ChildPicker.jsx    # "Who's learning today?"
-│           ├── SubjectSelect.jsx  # Home screen
-│           ├── ChatRoom.jsx       # Streaming tutoring chat
-│           ├── PracticeMode.jsx   # Problem generator
-│           └── ParentDashboard.jsx# PIN-gated weekly summary
-├── tests/api.test.js     # API tests with a mocked Claude client
-└── .github/workflows/ci.yml
+│       ├── App.tsx            # Providers, routing, family gate
+│       ├── i18n.tsx           # en/fr/es interface dictionaries
+│       ├── FamilyContext.tsx  # Family/kids/personas state
+│       ├── api.ts             # fetch + SSE + photo helpers
+│       └── components/        # Setup, picker, home, chat, practice, dashboard
+├── tests/                # Vitest: API (mocked Claude) + gamification units
+└── .github/workflows/ci.yml   # lint → typecheck → test → build
 ```
 
 ## 🛡️ Safety & Privacy

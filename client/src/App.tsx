@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Home, Users, Sparkles } from 'lucide-react';
 import { FamilyProvider, useFamily } from './FamilyContext';
+import { LanguageProvider, useI18n } from './i18n';
 import SubjectSelect from './components/SubjectSelect';
 import ChatRoom from './components/ChatRoom';
 import ParentDashboard from './components/ParentDashboard';
@@ -11,6 +12,7 @@ import './App.css';
 
 function Navigation() {
   const location = useLocation();
+  const { t } = useI18n();
   const isParentView = location.pathname === '/parent';
 
   if (isParentView) return null;
@@ -19,18 +21,18 @@ function Navigation() {
     <nav className="bottom-nav">
       <Link to="/" className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}>
         <Home size={24} />
-        <span>Home</span>
+        <span>{t('nav.home')}</span>
       </Link>
       <Link
         to="/practice"
         className={`nav-item ${location.pathname === '/practice' ? 'active' : ''}`}
       >
         <Sparkles size={24} />
-        <span>Practice</span>
+        <span>{t('nav.practice')}</span>
       </Link>
       <Link to="/parent" className="nav-item parent-link">
         <Users size={20} />
-        <span>Parent</span>
+        <span>{t('nav.parent')}</span>
       </Link>
     </nav>
   );
@@ -68,13 +70,15 @@ function Gate() {
 
 function App() {
   return (
-    <FamilyProvider>
-      <BrowserRouter>
-        <div className="app">
-          <Gate />
-        </div>
-      </BrowserRouter>
-    </FamilyProvider>
+    <LanguageProvider>
+      <FamilyProvider>
+        <BrowserRouter>
+          <div className="app">
+            <Gate />
+          </div>
+        </BrowserRouter>
+      </FamilyProvider>
+    </LanguageProvider>
   );
 }
 

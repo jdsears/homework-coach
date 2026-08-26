@@ -1,29 +1,61 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Sparkles, RefreshCw, Lightbulb, Check, ArrowRight, Eye, Repeat } from 'lucide-react';
 import CoachMarkdown from './CoachMarkdown';
-import { apiJson, gradeLabel } from '../api';
+import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
+import { useI18n, useGradeLabel } from '../i18n';
+import type { PracticeProblem } from '../types';
 
-const DIFFICULTY_LABELS = { 1: '★☆☆ warm-up', 2: '★★☆ practice', 3: '★★★ stretch' };
+const SUBJECT_IDS = ['math', 'reading', 'science', 'geography', 'history', 'french', 'spanish'];
 
-function ProblemCard({ item, index, total, onGraded, onSwapped }) {
+interface GradeResponse {
+  correct: boolean;
+  feedback: string;
+  explanation: string | null;
+}
+
+interface RevealResponse {
+  answer: string;
+  explanation: string;
+}
+
+function ProblemCard({
+  item,
+  index,
+  total,
+  onGraded,
+  onSwapped,
+}: {
+  item: PracticeProblem;
+  index: number;
+  total: number;
+  onGraded: (problemId: number, correct: boolean) => void;
+  onSwapped: (problem: PracticeProblem) => void;
+}) {
+  const { t } = useI18n();
   const [answer, setAnswer] = useState('');
   const [hintShown, setHintShown] = useState(false);
-  const [result, setResult] = useState(null); // {correct, feedback, explanation}
-  const [revealed, setRevealed] = useState(null); // {answer, explanation}
+  const [result, setResult] = useState<GradeResponse | null>(null);
+  const [revealed, setRevealed] = useState<RevealResponse | null>(null);
   const [wrongTries, setWrongTries] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const settled = revealed || result?.correct;
+  const settled = Boolean(revealed || result?.correct);
+  const difficultyLabel =
+    item.difficulty === 3
+      ? t('practice.diff3')
+      : item.difficulty === 2
+        ? t('practice.diff2')
+        : t('practice.diff1');
 
-  const check = async event => {
+  const check = async (event: FormEvent) => {
     event.preventDefault();
     if (!answer.trim() || busy || settled) return;
     setBusy(true);
     setError('');
     try {
-      const graded = await apiJson('/api/practice/answer', {
+      const graded = await apiJson<GradeResponse>('/api/practice/answer', {
         method: 'POST',
         body: { problemId: item.id, answer: answer.trim() },
       });
@@ -31,7 +63,7 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
       if (graded.correct) onGraded(item.id, true);
       else setWrongTries(tries => tries + 1);
     } catch (err) {
-      setError(err.friendly ? err.message : 'Could not check that answer - try again!');
+      setError(isApiError(err) && err.friendly ? err.message : t('practice.checkFailed'));
     } finally {
       setBusy(false);
     }
@@ -42,14 +74,14 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
     setBusy(true);
     setError('');
     try {
-      const data = await apiJson('/api/practice/reveal', {
+      const data = await apiJson<RevealResponse>('/api/practice/reveal', {
         method: 'POST',
         body: { problemId: item.id },
       });
       setRevealed(data);
       onGraded(item.id, false);
     } catch (err) {
-      setError(err.friendly ? err.message : 'Could not fetch the answer - try again!');
+      setError(isApiError(err) && err.friendly ? err.message : t('practice.answerFailed'));
     } finally {
       setBusy(false);
     }
@@ -60,13 +92,13 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
     setBusy(true);
     setError('');
     try {
-      const data = await apiJson('/api/practice/similar', {
+      const data = await apiJson<{ problem: PracticeProblem }>('/api/practice/similar', {
         method: 'POST',
         body: { problemId: item.id },
       });
       onSwapped(data.problem);
     } catch (err) {
-      setError(err.friendly ? err.message : 'Could not make a similar one - try again!');
+      setError(isApiError(err) && err.friendly ? err.message : t('practice.similarFailed'));
       setBusy(false);
     }
   };
@@ -75,9 +107,9 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
     <div className="problem-card">
       <div className="problem-card-top">
         <span className="problem-count">
-          Problem {index + 1} of {total}
+          {t('practice.problemCount', { i: index + 1, n: total })}
         </span>
-        <span className="difficulty-chip">{DIFFICULTY_LABELS[item.difficulty] || '★☆☆'}</span>
+        <span className="difficulty-chip">{difficultyLabel}</span>
       </div>
 
       <div className="problem-text">
@@ -89,7 +121,7 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
       ) : (
         !settled && (
           <button className="hint-btn" onClick={() => setHintShown(true)}>
-            <Lightbulb size={16} /> Show hint
+            <Lightbulb size={16} /> {t('practice.showHint')}
           </button>
         )
       )}
@@ -100,16 +132,17 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
             type="text"
             value={answer}
             onChange={e => setAnswer(e.target.value)}
-            placeholder="Type your answer..."
+            placeholder={t('practice.answerPh')}
             maxLength={300}
-            aria-label="Your answer"
+            aria-label={t('practice.yourAnswer')}
           />
           <button
             type="submit"
             className="generate-btn check-btn"
             disabled={busy || !answer.trim()}
           >
-            {busy ? <RefreshCw size={18} className="spinning" /> : <Check size={18} />} Check
+            {busy ? <RefreshCw size={18} className="spinning" /> : <Check size={18} />}{' '}
+            {t('practice.check')}
           </button>
         </form>
       )}
@@ -119,7 +152,7 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
           <CoachMarkdown>{result.feedback}</CoachMarkdown>
           {wrongTries >= 2 && (
             <button className="reveal-btn" onClick={reveal} disabled={busy}>
-              <Eye size={16} /> Show me the answer
+              <Eye size={16} /> {t('practice.showAnswer')}
             </button>
           )}
         </div>
@@ -127,7 +160,7 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
 
       {result?.correct && (
         <div className="feedback-box correct">
-          <strong>🎉 You got it!</strong>
+          <strong>{t('practice.gotIt')}</strong>
           <CoachMarkdown>{result.feedback}</CoachMarkdown>
           {result.explanation && <CoachMarkdown>{result.explanation}</CoachMarkdown>}
         </div>
@@ -135,14 +168,14 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
 
       {revealed && (
         <div className="feedback-box revealed">
-          <strong>The answer is: {revealed.answer}</strong>
+          <strong>{t('practice.answerIs', { answer: revealed.answer })}</strong>
           <CoachMarkdown>{revealed.explanation}</CoachMarkdown>
         </div>
       )}
 
       {settled && (
         <button className="hint-btn" onClick={similar} disabled={busy}>
-          <Repeat size={16} /> Give me a similar one
+          <Repeat size={16} /> {t('practice.similar')}
         </button>
       )}
 
@@ -153,21 +186,25 @@ function ProblemCard({ item, index, total, onGraded, onSwapped }) {
 
 function PracticeMode() {
   const { activeChild } = useFamily();
+  const { t } = useI18n();
+  const gradeLabel = useGradeLabel();
   const [subject, setSubject] = useState('math');
   const [topic, setTopic] = useState('');
-  const [problems, setProblems] = useState([]);
+  const [problems, setProblems] = useState<PracticeProblem[]>([]);
   const [current, setCurrent] = useState(0);
-  const [results, setResults] = useState({}); // problemId -> boolean
+  const [results, setResults] = useState<Record<number, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
-  const [review, setReview] = useState(null); // { due, total }
+  const [review, setReview] = useState<{ due: PracticeProblem[]; total: number } | null>(null);
 
   // Check for spaced-repetition reviews whenever the setup screen is visible
   useEffect(() => {
     let cancelled = false;
     if (!activeChild || (problems.length > 0 && !finished)) return undefined;
-    apiJson(`/api/practice/review?childId=${activeChild.id}`)
+    apiJson<{ due: PracticeProblem[]; total: number }>(
+      `/api/practice/review?childId=${activeChild.id}`
+    )
       .then(data => {
         if (!cancelled) setReview(data);
       })
@@ -181,14 +218,7 @@ function PracticeMode() {
 
   const startReview = () => {
     if (!review?.due?.length) return;
-    setProblems(
-      review.due.map(problem => ({
-        id: problem.id,
-        problem: problem.problem,
-        hint: problem.hint,
-        difficulty: problem.difficulty,
-      }))
-    );
+    setProblems(review.due);
     setCurrent(0);
     setResults({});
     setFinished(false);
@@ -199,7 +229,7 @@ function PracticeMode() {
     setIsLoading(true);
     setError('');
     try {
-      const data = await apiJson('/api/practice/generate', {
+      const data = await apiJson<{ problems: PracticeProblem[] }>('/api/practice/generate', {
         method: 'POST',
         body: { childId: activeChild.id, subject, topic: topic || subject },
       });
@@ -208,17 +238,17 @@ function PracticeMode() {
       setResults({});
       setFinished(false);
     } catch (err) {
-      setError(err.friendly ? err.message : 'Oops! Could not generate problems. Please try again.');
+      setError(isApiError(err) && err.friendly ? err.message : t('practice.error'));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const onGraded = (problemId, correct) => {
+  const onGraded = (problemId: number, correct: boolean) => {
     setResults(prev => ({ ...prev, [problemId]: correct }));
   };
 
-  const onSwapped = newProblem => {
+  const onSwapped = (newProblem: PracticeProblem) => {
     setProblems(prev => prev.map((p, i) => (i === current ? newProblem : p)));
   };
 
@@ -229,21 +259,22 @@ function PracticeMode() {
     <div className="practice-mode">
       <header className="practice-header">
         <Sparkles size={40} />
-        <h1>Practice Time!</h1>
+        <h1>{t('practice.title')}</h1>
         <p>
-          Custom problems for {activeChild.name} · {gradeLabel(activeChild.grade)} grade
+          {t('practice.subtitle', { name: activeChild.name, grade: gradeLabel(activeChild.grade) })}
         </p>
       </header>
 
       {problems.length === 0 || finished ? (
         <>
-          {review?.total > 0 && (
+          {review && review.total > 0 && (
             <button className="review-banner" onClick={startReview}>
               <span className="review-emoji">🔁</span>
               <span>
-                <strong>Review time!</strong> {review.total} problem
-                {review.total === 1 ? '' : 's'} from before {review.total === 1 ? 'is' : 'are'}{' '}
-                ready for another try.
+                <strong>{t('practice.reviewTitle')}</strong>{' '}
+                {review.total === 1
+                  ? t('practice.reviewOne')
+                  : t('practice.reviewMany', { n: review.total })}
               </span>
             </button>
           )}
@@ -254,41 +285,39 @@ function PracticeMode() {
               </div>
               <p>
                 {correctCount === problems.length
-                  ? 'Perfect round! 🌟 Want to try something harder?'
+                  ? t('practice.perfect')
                   : correctCount > 0
-                    ? 'Nice work! Every problem you try makes you stronger. 💪'
-                    : "Tough round - that's how learning feels sometimes. Let's try again! 🌱"}
+                    ? t('practice.nice')
+                    : t('practice.tough')}
               </p>
             </div>
           )}
           <div className="practice-card">
             <div className="practice-options">
               <div>
-                <label htmlFor="practice-subject">Subject</label>
+                <label htmlFor="practice-subject">{t('practice.subject')}</label>
                 <select
                   id="practice-subject"
                   value={subject}
                   onChange={e => setSubject(e.target.value)}
                 >
-                  <option value="math">Math</option>
-                  <option value="reading">Reading & Writing</option>
-                  <option value="science">Science</option>
-                  <option value="geography">Geography</option>
-                  <option value="history">History</option>
-                  <option value="french">French</option>
-                  <option value="spanish">Spanish</option>
+                  {SUBJECT_IDS.map(id => (
+                    <option key={id} value={id}>
+                      {t(`subject.${id}.name`)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label htmlFor="practice-topic">Topic (optional)</label>
+                <label htmlFor="practice-topic">{t('practice.topic')}</label>
                 <input
                   id="practice-topic"
                   type="text"
                   value={topic}
                   onChange={e => setTopic(e.target.value)}
                   maxLength={100}
-                  placeholder="e.g., fractions, vocabulary, ecosystems..."
+                  placeholder={t('practice.topicPh')}
                 />
               </div>
             </div>
@@ -296,12 +325,11 @@ function PracticeMode() {
             <button className="generate-btn" onClick={generateProblems} disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <RefreshCw size={20} className="spinning" /> Generating...
+                  <RefreshCw size={20} className="spinning" /> {t('practice.generating')}
                 </>
               ) : (
                 <>
-                  <Sparkles size={20} />{' '}
-                  {finished ? 'Practice again' : 'Generate Practice Problems'}
+                  <Sparkles size={20} /> {finished ? t('practice.again') : t('practice.generate')}
                 </>
               )}
             </button>
@@ -320,16 +348,16 @@ function PracticeMode() {
           />
           <div className="practice-nav">
             <span className="practice-score">
-              {correctCount} right so far {correctCount > 0 ? '🌟' : ''}
+              {t('practice.rightSoFar', { n: correctCount })} {correctCount > 0 ? '🌟' : ''}
             </span>
             {current < problems.length - 1 ? (
               <button
                 className="generate-btn next-btn"
                 onClick={() => setCurrent(c => c + 1)}
                 disabled={!answeredCurrent}
-                title={answeredCurrent ? 'Next problem' : 'Give this one a try first!'}
+                title={answeredCurrent ? t('practice.next') : t('practice.tryFirst')}
               >
-                Next <ArrowRight size={18} />
+                {t('practice.next')} <ArrowRight size={18} />
               </button>
             ) : (
               <button
@@ -337,7 +365,7 @@ function PracticeMode() {
                 onClick={() => setFinished(true)}
                 disabled={!answeredCurrent}
               >
-                Finish <Check size={18} />
+                {t('practice.finish')} <Check size={18} />
               </button>
             )}
           </div>

@@ -1,6 +1,7 @@
 const js = require('@eslint/js');
 const globals = require('globals');
 const react = require('eslint-plugin-react');
+const tseslint = require('typescript-eslint');
 
 module.exports = [
   {
@@ -9,15 +10,26 @@ module.exports = [
       'client/node_modules/**',
       'client/dist/**',
       'client/build/**',
+      'server-dist/**',
       'data/**',
     ],
   },
   js.configs.recommended,
+  ...tseslint.configs.recommended.map(config => ({
+    ...config,
+    files: ['server/**/*.ts', 'client/src/**/*.{ts,tsx}'],
+  })),
   {
-    files: ['server/**/*.js', 'eslint.config.js'],
+    files: ['eslint.config.js'],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'commonjs',
+      globals: { ...globals.node },
+    },
+  },
+  {
+    files: ['server/**/*.ts'],
+    languageOptions: {
       globals: { ...globals.node },
     },
   },
@@ -38,7 +50,7 @@ module.exports = [
     },
   },
   {
-    files: ['client/**/*.{js,jsx}'],
+    files: ['client/src/**/*.{js,jsx,ts,tsx}'],
     plugins: { react },
     languageOptions: {
       ecmaVersion: 2023,

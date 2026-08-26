@@ -4,7 +4,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 // Shared renderer for everything the coaches write: markdown + LaTeX math.
-function CoachMarkdown({ children }) {
+function CoachMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
       {children}

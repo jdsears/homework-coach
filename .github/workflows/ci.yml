@@ -26,6 +26,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Typecheck & build server
+        run: npm run build:server
+
+      - name: Typecheck client
+        run: npm run typecheck --prefix client
+
       - name: Test
         run: npm test
 

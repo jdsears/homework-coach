@@ -1,94 +1,90 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Camera, Mic, MicOff, Volume2, X, History } from 'lucide-react';
 import CoachMarkdown from './CoachMarkdown';
-import { streamChat, apiJson, gradeLabel, fileToApiImage } from '../api';
+import { streamChat, apiJson, fileToApiImage, isApiError, type ApiImage } from '../api';
 import { useFamily } from '../FamilyContext';
+import { useI18n, useGradeLabel, type TFunction } from '../i18n';
+import type { ChatMessage, RecentSession } from '../types';
 
-const subjectConfig = {
-  math: {
-    name: 'Math',
-    coach: 'Coach Mathilda',
-    emoji: '🧮',
-    starters: [
-      'I need help with fractions',
-      'Can you help me with word problems?',
-      "I'm stuck on my math homework",
-    ],
-  },
-  reading: {
-    name: 'Reading & Writing',
-    coach: 'Coach Riley',
-    emoji: '📖',
-    starters: [
-      'I need to write an essay',
-      'Can you help me understand this story?',
-      "I'm learning new vocabulary words",
-    ],
-  },
-  science: {
-    name: 'Science',
-    coach: 'Coach Newton',
-    emoji: '🔬',
-    starters: [
-      'How does photosynthesis work?',
-      'I have a science project question',
-      'Help me understand the solar system',
-    ],
-  },
-  geography: {
-    name: 'Geography',
-    coach: 'Coach Atlas',
-    emoji: '🌍',
-    starters: [
-      'Help me learn the continents',
-      "What's the difference between countries and states?",
-      'I need to learn about a country for school',
-    ],
-  },
-  history: {
-    name: 'History',
-    coach: 'Coach Clio',
-    emoji: '🏛️',
-    starters: [
-      'Tell me about ancient civilizations',
-      "I'm learning about a historical figure",
-      'Why did this event happen in history?',
-    ],
-  },
-  french: {
-    name: 'French',
-    coach: 'Coach Amélie',
-    emoji: '🇫🇷',
-    starters: [
-      'How do I introduce myself in French?',
-      'Help me with French vocabulary',
-      'I need to practice French conversation',
-    ],
-  },
-  spanish: {
-    name: 'Spanish',
-    coach: 'Coach Diego',
-    emoji: '🇪🇸',
-    starters: [
-      'How do I say hello in Spanish?',
-      'Help me with Spanish vocabulary',
-      'I need to practice Spanish conversation',
-    ],
-  },
+interface SubjectConfig {
+  key: string;
+  name: string;
+  coach: string;
+  emoji: string;
+  starters: string[];
+  isPersona: boolean;
+}
+
+const BUILTIN_COACHES: Record<string, { coach: string; emoji: string }> = {
+  math: { coach: 'Coach Mathilda', emoji: '🧮' },
+  reading: { coach: 'Coach Riley', emoji: '📖' },
+  science: { coach: 'Coach Newton', emoji: '🔬' },
+  geography: { coach: 'Coach Atlas', emoji: '🌍' },
+  history: { coach: 'Coach Clio', emoji: '🏛️' },
+  french: { coach: 'Coach Amélie', emoji: '🇫🇷' },
+  spanish: { coach: 'Coach Diego', emoji: '🇪🇸' },
 };
 
-const SpeechRecognitionImpl =
-  typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+function resolveConfig(
+  subject: string | undefined,
+  t: TFunction,
+  personas: Array<{ id: string; name: string; emoji: string; description: string }>
+): SubjectConfig {
+  if (subject?.startsWith('p:')) {
+    const persona = personas.find(p => p.id === subject.slice(2));
+    if (persona) {
+      return {
+        key: subject,
+        name: persona.description,
+        coach: persona.name,
+        emoji: persona.emoji,
+        starters: [t('chat.customStarter1'), t('chat.customStarter2')],
+        isPersona: true,
+      };
+    }
+  }
+  const key = subject && subject in BUILTIN_COACHES ? subject : 'math';
+  return {
+    key,
+    name: t(`subject.${key}.name`),
+    coach: BUILTIN_COACHES[key].coach,
+    emoji: BUILTIN_COACHES[key].emoji,
+    starters: [t(`subject.${key}.s1`), t(`subject.${key}.s2`), t(`subject.${key}.s3`)],
+    isPersona: false,
+  };
+}
 
-function updateLast(messages, patch) {
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+const SpeechRecognitionImpl: (new () => SpeechRecognitionLike) | undefined =
+  typeof window !== 'undefined'
+    ? ((window as unknown as Record<string, unknown>).SpeechRecognition as
+        (new () => SpeechRecognitionLike) | undefined) ||
+      ((window as unknown as Record<string, unknown>).webkitSpeechRecognition as
+        (new () => SpeechRecognitionLike) | undefined)
+    : undefined;
+
+function updateLast(
+  messages: ChatMessage[],
+  patch: Partial<ChatMessage> | ((last: ChatMessage) => ChatMessage)
+): ChatMessage[] {
   const copy = messages.slice();
   const last = copy[copy.length - 1];
   copy[copy.length - 1] = typeof patch === 'function' ? patch(last) : { ...last, ...patch };
   return copy;
 }
 
-function stripForSpeech(markdown) {
+function stripForSpeech(markdown: string): string {
   return markdown
     .replace(/\$\$?/g, ' ')
     .replace(/[*_#`>|]/g, '')
@@ -100,22 +96,24 @@ function stripForSpeech(markdown) {
 function ChatRoom() {
   const { subject } = useParams();
   const navigate = useNavigate();
-  const { activeChild } = useFamily();
+  const { activeChild, personas } = useFamily();
+  const { t } = useI18n();
+  const gradeLabel = useGradeLabel();
 
-  const config = subjectConfig[subject] || subjectConfig.math;
+  const config = resolveConfig(subject, t, personas);
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
-  const [pendingImage, setPendingImage] = useState(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<ApiImage | null>(null);
   const [listening, setListening] = useState(false);
-  const [resumable, setResumable] = useState(null);
+  const [resumable, setResumable] = useState<RecentSession | null>(null);
 
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
-  const fileRef = useRef(null);
-  const recognitionRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -125,7 +123,7 @@ function ChatRoom() {
   useEffect(() => {
     let cancelled = false;
     if (!activeChild) return undefined;
-    apiJson(`/api/sessions/recent?childId=${activeChild.id}`)
+    apiJson<{ sessions: RecentSession[] }>(`/api/sessions/recent?childId=${activeChild.id}`)
       .then(({ sessions }) => {
         if (cancelled) return;
         const match = sessions.find(s => s.subject === subject && s.messageCount > 0);
@@ -139,7 +137,7 @@ function ChatRoom() {
 
   useEffect(
     () => () => {
-      recognitionRef.current?.stop?.();
+      recognitionRef.current?.stop();
       window.speechSynthesis?.cancel();
     },
     []
@@ -148,8 +146,12 @@ function ChatRoom() {
   if (!activeChild) return null;
 
   const resumeSession = async () => {
+    if (!resumable) return;
     try {
-      const data = await apiJson(`/api/sessions/${resumable.id}/messages`);
+      const data = await apiJson<{
+        sessionId: string;
+        messages: Array<{ role: 'user' | 'assistant'; content: string; hasImage: boolean }>;
+      }>(`/api/sessions/${resumable.id}/messages`);
       setMessages(
         data.messages.map(msg => ({
           role: msg.role,
@@ -164,7 +166,7 @@ function ChatRoom() {
     }
   };
 
-  const attachPhoto = async event => {
+  const attachPhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
@@ -172,10 +174,7 @@ function ChatRoom() {
       setPendingImage(await fileToApiImage(file));
     } catch (error) {
       console.error('Photo error:', error);
-      setMessages(prev => [
-        ...prev,
-        { role: 'system', content: "That photo didn't come through - try taking it again! 📷" },
-      ]);
+      setMessages(prev => [...prev, { role: 'system', content: t('chat.photoFailed') }]);
     }
   };
 
@@ -200,7 +199,7 @@ function ChatRoom() {
     recognition.start();
   };
 
-  const speak = text => {
+  const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(stripForSpeech(text));
@@ -208,7 +207,7 @@ function ChatRoom() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const sendMessage = async messageText => {
+  const sendMessage = async (messageText?: string) => {
     const image = pendingImage;
     const text = messageText || input.trim() || (image ? 'Can you help me with this?' : '');
     if (!text || isLoading) return;
@@ -226,7 +225,7 @@ function ChatRoom() {
       await streamChat({
         childId: activeChild.id,
         sessionId,
-        subject,
+        subject: config.key,
         message: text,
         image: image ? { media_type: image.media_type, data: image.data } : undefined,
         onMeta: meta => {
@@ -253,9 +252,7 @@ function ChatRoom() {
           ...copy,
           {
             role: 'system',
-            content: error.friendly
-              ? error.message
-              : "Oops! Something went wrong. Let's try again! 🔄",
+            content: isApiError(error) && error.friendly ? error.message : t('chat.error'),
           },
         ];
       });
@@ -265,12 +262,12 @@ function ChatRoom() {
     }
   };
 
-  const handleSubmit = e => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     sendMessage();
   };
 
-  const handleKeyDown = e => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -286,7 +283,7 @@ function ChatRoom() {
   return (
     <div className="chat-room">
       <header className="chat-header">
-        <button className="back-btn" onClick={() => navigate('/')} aria-label="Back to subjects">
+        <button className="back-btn" onClick={() => navigate('/')} aria-label={t('chat.back')}>
           <ArrowLeft size={24} />
         </button>
         <div className="chat-header-info">
@@ -294,7 +291,11 @@ function ChatRoom() {
             {config.emoji} {config.coach}
           </h1>
           <p>
-            {activeChild.name} · {gradeLabel(activeChild.grade)} grade · {config.name}
+            {t('chat.headerLine', {
+              name: activeChild.name,
+              grade: gradeLabel(activeChild.grade),
+              subject: config.name,
+            })}
           </p>
         </div>
       </header>
@@ -302,17 +303,14 @@ function ChatRoom() {
       <div className="messages-container">
         {visibleMessages.length === 0 && !waitingForFirstToken ? (
           <div className="welcome-message">
-            <div className={`welcome-avatar ${subject}`}>{config.emoji}</div>
-            <h2>
-              Hi {activeChild.name}! I'm {config.coach}!
-            </h2>
-            <p>
-              I'm here to help you learn - not just give you answers! Tell me what you're working
-              on, or snap a photo of it. 🌟
-            </p>
+            <div className={`welcome-avatar ${config.isPersona ? 'custom' : config.key}`}>
+              {config.emoji}
+            </div>
+            <h2>{t('chat.welcome', { name: activeChild.name, coach: config.coach })}</h2>
+            <p>{t('chat.welcomeBody')}</p>
             {resumable && (
               <button className="resume-chip" onClick={resumeSession}>
-                <History size={16} /> Keep going where we left off
+                <History size={16} /> {t('chat.resume')}
               </button>
             )}
             <div className="starter-questions">
@@ -327,7 +325,9 @@ function ChatRoom() {
           visibleMessages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
               {msg.imageUrl && <img className="chat-photo" src={msg.imageUrl} alt="Homework" />}
-              {msg.hadImage && !msg.imageUrl && <div className="photo-note">📷 sent a photo</div>}
+              {msg.hadImage && !msg.imageUrl && (
+                <div className="photo-note">📷 {t('chat.sentPhoto')}</div>
+              )}
               {msg.role === 'user' ? (
                 msg.content
               ) : (
@@ -337,8 +337,8 @@ function ChatRoom() {
                     <button
                       className="speak-btn"
                       onClick={() => speak(msg.content)}
-                      aria-label="Read this aloud"
-                      title="Read aloud"
+                      aria-label={t('chat.readAloud')}
+                      title={t('chat.readAloud')}
                     >
                       <Volume2 size={16} />
                     </button>
@@ -366,12 +366,12 @@ function ChatRoom() {
         {pendingImage && (
           <div className="photo-preview">
             <img src={pendingImage.previewUrl} alt="Attached homework" />
-            <span>Photo ready to send!</span>
+            <span>{t('chat.photoReady')}</span>
             <button
               type="button"
               className="icon-btn"
               onClick={() => setPendingImage(null)}
-              aria-label="Remove photo"
+              aria-label={t('chat.removePhoto')}
             >
               <X size={16} />
             </button>
@@ -391,8 +391,8 @@ function ChatRoom() {
             className="tool-btn"
             onClick={() => fileRef.current?.click()}
             disabled={isLoading}
-            aria-label="Snap a photo of your homework"
-            title="Snap your homework"
+            aria-label={t('chat.snapTitle')}
+            title={t('chat.snapTitle')}
           >
             <Camera size={20} />
           </button>
@@ -402,8 +402,8 @@ function ChatRoom() {
               className={`tool-btn ${listening ? 'listening' : ''}`}
               onClick={toggleListening}
               disabled={isLoading}
-              aria-label={listening ? 'Stop listening' : 'Speak instead of typing'}
-              title="Speak instead of typing"
+              aria-label={listening ? t('chat.stopTitle') : t('chat.speakTitle')}
+              title={t('chat.speakTitle')}
             >
               {listening ? <MicOff size={20} /> : <Mic size={20} />}
             </button>
@@ -414,7 +414,7 @@ function ChatRoom() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={listening ? 'Listening...' : 'Type your question here...'}
+            placeholder={listening ? t('chat.listening') : t('chat.inputPh')}
             rows={1}
             maxLength={2000}
             disabled={isLoading}
@@ -423,7 +423,7 @@ function ChatRoom() {
             type="submit"
             className="send-btn"
             disabled={(!input.trim() && !pendingImage) || isLoading}
-            aria-label="Send message"
+            aria-label={t('chat.send')}
           >
             <Send size={20} />
           </button>

@@ -1,13 +1,17 @@
 // Family summaries, per-child progress, and the weekly digest.
 // Shared by the API routes and the weekly email scheduler.
 
-const {
+import type Database from 'better-sqlite3';
+import {
   computeXp,
   levelInfo,
   computeStreak,
   computeBadges,
   dailyChallenge,
-} = require('./gamification');
+  type Badge,
+  type Challenge,
+} from './gamification';
+import type { ChildRow, FamilyRow } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -15,9 +19,11 @@ const WEEK_MS = 7 * DAY_MS;
 const now = () => new Date().toISOString();
 const today = () => new Date().toISOString().slice(0, 10);
 
-function generateParentTip(strugglesBySubject) {
-  const tips = [];
-  const count = subject => (strugglesBySubject[subject] || []).length;
+type Count = { total: number };
+
+export function generateParentTip(strugglesBySubject: Record<string, unknown[]>): string[] {
+  const tips: string[] = [];
+  const count = (subject: string) => (strugglesBySubject[subject] || []).length;
 
   if (count('math') > 2) {
     tips.push(
@@ -62,12 +68,12 @@ function generateParentTip(strugglesBySubject) {
 
 // Sum of capped gaps between consecutive messages within a session, plus a
 // minute for opening each session - a fair approximation of time-on-task.
-function timeOnTaskMinutes(rows) {
+export function timeOnTaskMinutes(rows: Array<{ session_id: string; created_at: string }>): number {
   let totalMs = 0;
-  let prev = null;
+  let prev: { session_id: string; created_at: string } | null = null;
   for (const row of rows) {
     if (prev && prev.session_id === row.session_id) {
-      const gap = new Date(row.created_at) - new Date(prev.created_at);
+      const gap = new Date(row.created_at).getTime() - new Date(prev.created_at).getTime();
       totalMs += Math.min(Math.max(gap, 0), 3 * 60 * 1000);
     } else {
       totalMs += 60 * 1000;
@@ -77,85 +83,94 @@ function timeOnTaskMinutes(rows) {
   return Math.round(totalMs / 60000);
 }
 
-function childProgress(db, child) {
-  const assistantMessages = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
-       WHERE s.child_id = ? AND m.role = 'assistant'`
-    )
-    .get(child.id).total;
+export interface ChildProgress {
+  xp: number;
+  level: number;
+  intoLevel: number;
+  levelSize: number;
+  streak: number;
+  activeDates: string[];
+  badges: Badge[];
+  challenge: Challenge & { progress: number; done: boolean };
+}
+
+export function childProgress(db: Database.Database, child: ChildRow): ChildProgress {
+  const assistantMessages = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
+         WHERE s.child_id = ? AND m.role = 'assistant'`
+      )
+      .get(child.id) as Count
+  ).total;
 
   const attemptStats = db
     .prepare(
       `SELECT COUNT(*) AS attempts, COALESCE(SUM(correct), 0) AS correct
        FROM practice_attempts WHERE child_id = ?`
     )
-    .get(child.id);
+    .get(child.id) as { attempts: number; correct: number };
 
-  const sessions = db
-    .prepare('SELECT COUNT(*) AS total FROM sessions WHERE child_id = ?')
-    .get(child.id).total;
+  const sessions = (
+    db.prepare('SELECT COUNT(*) AS total FROM sessions WHERE child_id = ?').get(child.id) as Count
+  ).total;
 
-  const messages = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
-       WHERE s.child_id = ?`
-    )
-    .get(child.id).total;
+  const messages = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
+         WHERE s.child_id = ?`
+      )
+      .get(child.id) as Count
+  ).total;
 
-  const photos = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
-       WHERE s.child_id = ? AND m.has_image = 1`
-    )
-    .get(child.id).total;
+  const photos = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM messages m JOIN sessions s ON s.id = m.session_id
+         WHERE s.child_id = ? AND m.has_image = 1`
+      )
+      .get(child.id) as Count
+  ).total;
 
-  const subjectRows = db
-    .prepare(
-      `SELECT DISTINCT subject FROM (
-         SELECT subject FROM sessions WHERE child_id = ?
-         UNION SELECT subject FROM practice_attempts WHERE child_id = ?
-       )`
-    )
-    .all(child.id, child.id);
-  const subjects = subjectRows.map(row => row.subject);
+  const subjects = (
+    db
+      .prepare(
+        `SELECT DISTINCT subject FROM (
+           SELECT subject FROM sessions WHERE child_id = ?
+           UNION SELECT subject FROM practice_attempts WHERE child_id = ?
+         )`
+      )
+      .all(child.id, child.id) as Array<{ subject: string }>
+  ).map(row => row.subject);
 
-  const challengeDays = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM (
-         SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS c
-         FROM practice_attempts WHERE child_id = ? GROUP BY day HAVING c >= 3
-       )`
-    )
-    .get(child.id).total;
+  const challengeDays = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM (
+           SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS c
+           FROM practice_attempts WHERE child_id = ? GROUP BY day HAVING c >= 3
+         )`
+      )
+      .get(child.id) as Count
+  ).total;
 
   const since = new Date(Date.now() - 60 * DAY_MS).toISOString();
-  const activeDates = db
-    .prepare(
-      `SELECT DISTINCT day FROM (
-         SELECT substr(m.created_at, 1, 10) AS day FROM messages m
-         JOIN sessions s ON s.id = m.session_id WHERE s.child_id = ? AND m.created_at >= ?
-         UNION
-         SELECT substr(created_at, 1, 10) AS day FROM practice_attempts
-         WHERE child_id = ? AND created_at >= ?
-       ) ORDER BY day`
-    )
-    .all(child.id, since, child.id, since)
-    .map(row => row.day);
+  const activeDates = (
+    db
+      .prepare(
+        `SELECT DISTINCT day FROM (
+           SELECT substr(m.created_at, 1, 10) AS day FROM messages m
+           JOIN sessions s ON s.id = m.session_id WHERE s.child_id = ? AND m.created_at >= ?
+           UNION
+           SELECT substr(created_at, 1, 10) AS day FROM practice_attempts
+           WHERE child_id = ? AND created_at >= ?
+         ) ORDER BY day`
+      )
+      .all(child.id, since, child.id, since) as Array<{ day: string }>
+  ).map(row => row.day);
 
   const streak = computeStreak(activeDates, today());
-
-  const stats = {
-    sessions,
-    messages,
-    attempts: attemptStats.attempts,
-    correctAttempts: attemptStats.correct,
-    subjectsTried: subjects.length,
-    languagesTried: subjects.filter(subject => subject === 'french' || subject === 'spanish')
-      .length,
-    photos,
-    streak,
-  };
 
   const xp = computeXp({
     assistantMessages,
@@ -170,14 +185,16 @@ function childProgress(db, child) {
        WHERE child_id = ? AND attempts >= 3 AND score < 0.6
        ORDER BY score ASC LIMIT 1`
     )
-    .get(child.id);
+    .get(child.id) as { subject: string; topic: string; score: number } | undefined;
 
-  const attemptsToday = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM practice_attempts
-       WHERE child_id = ? AND substr(created_at, 1, 10) = ?`
-    )
-    .get(child.id, today()).total;
+  const attemptsToday = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM practice_attempts
+         WHERE child_id = ? AND substr(created_at, 1, 10) = ?`
+      )
+      .get(child.id, today()) as Count
+  ).total;
 
   const challenge = dailyChallenge({
     weakTopic: weakTopic || null,
@@ -189,7 +206,17 @@ function childProgress(db, child) {
     ...levelInfo(xp),
     streak,
     activeDates: activeDates.slice(-30),
-    badges: computeBadges(stats),
+    badges: computeBadges({
+      sessions,
+      messages,
+      attempts: attemptStats.attempts,
+      correctAttempts: attemptStats.correct,
+      subjectsTried: subjects.length,
+      languagesTried: subjects.filter(subject => subject === 'french' || subject === 'spanish')
+        .length,
+      photos,
+      streak,
+    }),
     challenge: {
       ...challenge,
       progress: Math.min(attemptsToday, challenge.goal),
@@ -198,10 +225,33 @@ function childProgress(db, child) {
   };
 }
 
-function familySummary(db, family) {
+export interface ChildSummary extends Pick<ChildRow, 'id' | 'name' | 'grade'> {
+  messageCount: number;
+  practiceCount: number;
+  minutes: number;
+  strengths: string[];
+  focusAreas: string[];
+}
+
+export interface FamilySummaryData {
+  weekStart: string;
+  weekEnd: string;
+  familyName: string;
+  familyCode: string;
+  digestEmail: string;
+  totalSessions: number;
+  totalMinutes: number;
+  subjectBreakdown: Record<string, number>;
+  struggles: Record<string, Array<{ type: string; timestamp: string; subject: string }>>;
+  children: ChildSummary[];
+  dailyActivity: Array<{ date: string; messages: number; practice: number }>;
+  encouragement: string[];
+}
+
+export function familySummary(db: Database.Database, family: FamilyRow): FamilySummaryData {
   const weekAgo = new Date(Date.now() - WEEK_MS).toISOString();
 
-  const subjectBreakdown = {
+  const subjectBreakdown: Record<string, number> = {
     math: 0,
     reading: 0,
     science: 0,
@@ -209,6 +259,7 @@ function familySummary(db, family) {
     history: 0,
     french: 0,
     spanish: 0,
+    custom: 0,
   };
   const subjectRows = db
     .prepare(
@@ -218,11 +269,15 @@ function familySummary(db, family) {
        WHERE c.family_id = ? AND m.created_at >= ?
        GROUP BY s.subject`
     )
-    .all(family.id, weekAgo);
-  for (const row of subjectRows) subjectBreakdown[row.subject] = row.count;
+    .all(family.id, weekAgo) as Array<{ subject: string; count: number }>;
+  for (const row of subjectRows) {
+    // Custom coach sessions (subject "p:<id>") roll into one bucket
+    const key = row.subject in subjectBreakdown ? row.subject : 'custom';
+    subjectBreakdown[key] += row.count;
+  }
 
   // Struggle *types* only - kids' raw words stay out of API responses
-  const struggles = {};
+  const struggles: FamilySummaryData['struggles'] = {};
   const struggleRows = db
     .prepare(
       `SELECT st.subject AS subject, st.type AS type, st.created_at AS timestamp FROM struggles st
@@ -231,25 +286,27 @@ function familySummary(db, family) {
        WHERE c.family_id = ? AND st.created_at >= ?
        ORDER BY st.created_at DESC`
     )
-    .all(family.id, weekAgo);
+    .all(family.id, weekAgo) as Array<{ subject: string; type: string; timestamp: string }>;
   for (const row of struggleRows) {
     if (!struggles[row.subject]) struggles[row.subject] = [];
     struggles[row.subject].push({ type: row.type, timestamp: row.timestamp, subject: row.subject });
   }
 
-  const totalSessions = db
-    .prepare(
-      `SELECT COUNT(*) AS total FROM sessions s
-       JOIN children c ON c.id = s.child_id
-       WHERE c.family_id = ? AND s.started_at >= ?`
-    )
-    .get(family.id, weekAgo).total;
+  const totalSessions = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM sessions s
+         JOIN children c ON c.id = s.child_id
+         WHERE c.family_id = ? AND s.started_at >= ?`
+      )
+      .get(family.id, weekAgo) as Count
+  ).total;
 
   const childRows = db
     .prepare('SELECT id, name, grade FROM children WHERE family_id = ? ORDER BY created_at, id')
-    .all(family.id);
+    .all(family.id) as Array<Pick<ChildRow, 'id' | 'name' | 'grade'>>;
 
-  const children = childRows.map(child => {
+  const children: ChildSummary[] = childRows.map(child => {
     const messageRows = db
       .prepare(
         `SELECT m.session_id, m.created_at FROM messages m
@@ -257,17 +314,19 @@ function familySummary(db, family) {
          WHERE s.child_id = ? AND m.created_at >= ?
          ORDER BY m.session_id, m.id`
       )
-      .all(child.id, weekAgo);
+      .all(child.id, weekAgo) as Array<{ session_id: string; created_at: string }>;
 
-    const attemptsThisWeek = db
-      .prepare(
-        'SELECT COUNT(*) AS total FROM practice_attempts WHERE child_id = ? AND created_at >= ?'
-      )
-      .get(child.id, weekAgo).total;
+    const attemptsThisWeek = (
+      db
+        .prepare(
+          'SELECT COUNT(*) AS total FROM practice_attempts WHERE child_id = ? AND created_at >= ?'
+        )
+        .get(child.id, weekAgo) as Count
+    ).total;
 
     const masteryRows = db
       .prepare('SELECT subject, topic, score FROM mastery WHERE child_id = ? AND attempts >= 3')
-      .all(child.id);
+      .all(child.id) as Array<{ subject: string; topic: string; score: number }>;
 
     return {
       ...child,
@@ -289,7 +348,7 @@ function familySummary(db, family) {
 
   // Last 14 days of activity for the chart: messages + practice per day
   const since14 = new Date(Date.now() - 14 * DAY_MS).toISOString();
-  const perDay = new Map();
+  const perDay = new Map<string, { date: string; messages: number; practice: number }>();
   for (let i = 13; i >= 0; i--) {
     const day = new Date(Date.now() - i * DAY_MS).toISOString().slice(0, 10);
     perDay.set(day, { date: day, messages: 0, practice: 0 });
@@ -301,16 +360,22 @@ function familySummary(db, family) {
        JOIN children c2 ON c2.id = s.child_id
        WHERE c2.family_id = ? AND m.created_at >= ? GROUP BY day`
     )
-    .all(family.id, since14);
-  for (const row of messageDays) if (perDay.has(row.day)) perDay.get(row.day).messages = row.c;
+    .all(family.id, since14) as Array<{ day: string; c: number }>;
+  for (const row of messageDays) {
+    const entry = perDay.get(row.day);
+    if (entry) entry.messages = row.c;
+  }
   const practiceDays = db
     .prepare(
       `SELECT substr(pa.created_at, 1, 10) AS day, COUNT(*) AS c FROM practice_attempts pa
        JOIN children c2 ON c2.id = pa.child_id
        WHERE c2.family_id = ? AND pa.created_at >= ? GROUP BY day`
     )
-    .all(family.id, since14);
-  for (const row of practiceDays) if (perDay.has(row.day)) perDay.get(row.day).practice = row.c;
+    .all(family.id, since14) as Array<{ day: string; c: number }>;
+  for (const row of practiceDays) {
+    const entry = perDay.get(row.day);
+    if (entry) entry.practice = row.c;
+  }
 
   return {
     weekStart: weekAgo,
@@ -328,14 +393,18 @@ function familySummary(db, family) {
   };
 }
 
-const escapeHtml = text =>
+const escapeHtml = (text: unknown): string =>
   String(text).replace(
     /[&<>"']/g,
-    ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]
+    ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] as string
   );
 
 // Inline-styled HTML that renders decently in every mail client.
-function buildDigestHtml(family, summary, progressByChildId) {
+export function buildDigestHtml(
+  family: FamilyRow,
+  summary: FamilySummaryData,
+  progressByChildId: Record<string, ChildProgress>
+): string {
   const kidBlocks = summary.children
     .map(child => {
       const progress = progressByChildId[child.id];
@@ -373,5 +442,3 @@ function buildDigestHtml(family, summary, progressByChildId) {
     <p style="color:#64748b;font-size:12px;text-align:center;">Sent by your family's Homework Coach. Manage this digest from the parent dashboard.</p>
   </div>`;
 }
-
-module.exports = { familySummary, childProgress, buildDigestHtml, generateParentTip };

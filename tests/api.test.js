@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import { createDb } from '../server/db.js';
-import { createApp } from '../server/app.js';
+import { createDb } from '../server/db';
+import { createApp } from '../server/app';
 
 const COACH_REPLY = 'Great question! What do you already know about it?';
 
@@ -713,5 +713,75 @@ describe('parent dashboard v2', () => {
     expect(digest.status).toBe(200);
     expect(digest.body.html).toContain('Testers');
     expect(digest.body.html).toContain('Maya');
+  });
+});
+
+describe('custom coach personas', () => {
+  it('creates, lists, chats with, and deletes a family coach', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+
+    const created = await agent
+      .post('/api/personas')
+      .send({ name: 'Coach Pawn', emoji: '♟️', description: 'chess strategy for beginners' });
+    expect(created.status).toBe(200);
+
+    const me = await agent.get('/api/family/me');
+    expect(me.body.personas).toHaveLength(1);
+
+    // Chatting with the persona injects its scaffolded prompt
+    const res = await agent
+      .post('/api/chat')
+      .send({
+        childId: children[0].id,
+        subject: `p:${created.body.id}`,
+        message: 'teach me openings',
+      });
+    expect(res.status).toBe(200);
+    const call = ctx.anthropic.calls.stream.at(-1);
+    const system = JSON.stringify(call.system);
+    expect(system).toContain('Coach Pawn');
+    expect(system).toContain('chess strategy');
+    expect(system).toContain('NEVER give final answers');
+
+    // Another family can't chat with it
+    const otherAgent = request.agent(ctx.app);
+    const other = await signupFamily(otherAgent, { familyName: 'Others' });
+    const stolen = await otherAgent
+      .post('/api/chat')
+      .send({ childId: other.children[0].id, subject: `p:${created.body.id}`, message: 'hi' });
+    expect(stolen.status).toBe(400);
+
+    const del = await agent.delete(`/api/personas/${created.body.id}`);
+    expect(del.status).toBe(200);
+    expect((await agent.get('/api/family/me')).body.personas).toHaveLength(0);
+  });
+
+  it('validates persona input and caps the count at 5', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    await signupFamily(agent);
+
+    expect(
+      (await agent.post('/api/personas').send({ name: '', description: 'chess things' })).status
+    ).toBe(400);
+    expect(
+      (await agent.post('/api/personas').send({ name: 'Coach A', description: 'xy' })).status
+    ).toBe(400);
+
+    for (let i = 0; i < 5; i++) {
+      expect(
+        (
+          await agent
+            .post('/api/personas')
+            .send({ name: `Coach ${i}`, description: 'something fun to learn' })
+        ).status
+      ).toBe(200);
+    }
+    expect(
+      (await agent.post('/api/personas').send({ name: 'One Too Many', description: 'sorry pal' }))
+        .status
+    ).toBe(400);
   });
 });

@@ -1,9 +1,16 @@
-const Anthropic = require('@anthropic-ai/sdk');
+import Anthropic from '@anthropic-ai/sdk';
+import type {
+  AnthropicLike,
+  FinalMessageLike,
+  MessageStreamLike,
+  ParseResultLike,
+  UsageLike,
+} from './types';
 
 // Tutoring model - env-configurable, current generation by default.
-const CHAT_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5';
+export const CHAT_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5';
 // Fast model for classification, grading, and memory summaries.
-const FAST_MODEL = process.env.CLAUDE_FAST_MODEL || 'claude-haiku-4-5';
+export const FAST_MODEL = process.env.CLAUDE_FAST_MODEL || 'claude-haiku-4-5';
 // Adaptive thinking is on by default on this tier; low effort keeps chat snappy
 // while letting the model think when a problem actually needs it.
 const CHAT_EFFORT = process.env.CLAUDE_EFFORT || 'low';
@@ -13,11 +20,28 @@ const CHAT_EFFORT = process.env.CLAUDE_EFFORT || 'low';
 // on a fallback model inside the same call.
 const FALLBACKS_SUPPORTED = /^claude-(opus-5|fable-5)/.test(CHAT_MODEL);
 
-function createAnthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+type SystemPrompt = string | Array<Record<string, unknown>>;
+
+interface ChatParams {
+  system: SystemPrompt;
+  messages: Array<Record<string, unknown>>;
+  maxTokens?: number;
 }
 
-function streamChat(anthropic, { system, messages, maxTokens = 1024 }) {
+interface StructuredParams extends ChatParams {
+  format: Record<string, unknown>;
+  effort?: string;
+}
+
+export function createAnthropic(): AnthropicLike {
+  // The SDK client satisfies the structural AnthropicLike surface we use.
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) as unknown as AnthropicLike;
+}
+
+export function streamChat(
+  anthropic: AnthropicLike,
+  { system, messages, maxTokens = 1024 }: ChatParams
+): MessageStreamLike {
   const params = {
     model: CHAT_MODEL,
     max_tokens: maxTokens,
@@ -36,10 +60,10 @@ function streamChat(anthropic, { system, messages, maxTokens = 1024 }) {
 }
 
 // Structured generation on the tutoring model (practice sets and similar).
-function parseStructured(
-  anthropic,
-  { system, messages, format, maxTokens = 2000, effort = 'medium' }
-) {
+export function parseStructured(
+  anthropic: AnthropicLike,
+  { system, messages, format, maxTokens = 2000, effort = 'medium' }: StructuredParams
+): Promise<ParseResultLike> {
   return anthropic.messages.parse({
     model: CHAT_MODEL,
     max_tokens: maxTokens,
@@ -51,7 +75,10 @@ function parseStructured(
 
 // Structured call on the fast model (classifier, answer grading, memory).
 // Haiku 4.5 does not take output_config.effort, so none is sent.
-function fastParse(anthropic, { system, messages, format, maxTokens = 400 }) {
+export function fastParse(
+  anthropic: AnthropicLike,
+  { system, messages, format, maxTokens = 400 }: StructuredParams
+): Promise<ParseResultLike> {
   return anthropic.messages.parse({
     model: FAST_MODEL,
     max_tokens: maxTokens,
@@ -61,38 +88,17 @@ function fastParse(anthropic, { system, messages, format, maxTokens = 400 }) {
   });
 }
 
-function fastCompletion(anthropic, { system, messages, maxTokens = 400 }) {
-  return anthropic.messages.create({
-    model: FAST_MODEL,
-    max_tokens: maxTokens,
-    system,
-    messages,
-  });
-}
-
-function extractText(message) {
+export function extractText(message: FinalMessageLike): string {
   return (message.content || [])
     .filter(block => block.type === 'text')
-    .map(block => block.text)
+    .map(block => block.text || '')
     .join('');
 }
 
-function totalInputTokens(usage = {}) {
+export function totalInputTokens(usage: UsageLike = {}): number {
   return (
     (usage.input_tokens || 0) +
     (usage.cache_read_input_tokens || 0) +
     (usage.cache_creation_input_tokens || 0)
   );
 }
-
-module.exports = {
-  CHAT_MODEL,
-  FAST_MODEL,
-  createAnthropic,
-  streamChat,
-  parseStructured,
-  fastParse,
-  fastCompletion,
-  extractText,
-  totalInputTokens,
-};

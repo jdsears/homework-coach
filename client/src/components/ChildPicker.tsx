@@ -1,32 +1,32 @@
 import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
-import { gradeLabel } from '../api';
 import { useFamily } from '../FamilyContext';
+import { useI18n, useGradeLabel } from '../i18n';
 
 const AVATARS = ['🦊', '🐼', '🦉', '🐯', '🐸', '🦄', '🐧', '🐨'];
 
 function ChildPicker() {
   const { family, kids, selectChild } = useFamily();
+  const { t } = useI18n();
+  const gradeLabel = useGradeLabel();
 
   return (
     <div className="setup-screen">
       <header className="header">
         <div className="mascot">👋</div>
-        <h1>Who's learning today?</h1>
-        <p>{family.name}</p>
+        <h1>{t('picker.title')}</h1>
+        <p>{family?.name}</p>
       </header>
 
       {kids.length === 0 ? (
         <div className="setup-card">
-          <p style={{ marginBottom: '16px' }}>
-            No kid profiles yet! A parent can add one from the parent dashboard.
-          </p>
+          <p style={{ marginBottom: '16px' }}>{t('picker.noKids')}</p>
           <Link
             to="/parent"
             className="generate-btn"
             style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}
           >
-            Open parent dashboard
+            {t('picker.openParent')}
           </Link>
         </div>
       ) : (
@@ -35,14 +35,14 @@ function ChildPicker() {
             <button key={kid.id} className="child-card" onClick={() => selectChild(kid.id)}>
               <div className="child-avatar">{AVATARS[index % AVATARS.length]}</div>
               <div className="child-name">{kid.name}</div>
-              <div className="child-grade">{gradeLabel(kid.grade)} grade</div>
+              <div className="child-grade">{gradeLabel(kid.grade)}</div>
             </button>
           ))}
         </div>
       )}
 
       <Link to="/parent" className="parent-corner-link">
-        <Users size={16} /> Parents
+        <Users size={16} /> {t('picker.parents')}
       </Link>
     </div>
   );

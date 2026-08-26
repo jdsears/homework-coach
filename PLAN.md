@@ -71,7 +71,9 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 3. **Parent dashboard v2** — real time-on-task, per-topic mastery trends, week-over-week charts, and a weekly email digest so value lands in the inbox without anyone remembering to check.
 4. **Deliver the PWA promise** — manifest, service worker, offline shell, install prompt. The README already advertises it; make it true.
 
-## Phase 4 — Scale & polish
+## Phase 4 — Scale & polish — ✅ shipped in PR #5
+
+*(Postgres deliberately stays documented-not-built: SQLite on a Railway volume is right-sized until real scale demands otherwise, and `server/db.ts` is the single seam a Postgres driver would replace.)*
 
 1. TypeScript migration, structured logging, error tracking (Sentry).
 2. Postgres on Railway when SQLite is outgrown (schema ports cleanly).

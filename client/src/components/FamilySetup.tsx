@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
-import { apiJson } from '../api';
+import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
+import { LANGUAGE_NAMES, useI18n, useGradeLabel } from '../i18n';
+import type { Lang } from '../prefs';
 
 const GRADES = ['3', '4', '5', '6', '7', '8'];
 
-function KidRows({ kids, setKids }) {
-  const update = (index, patch) =>
+interface KidInput {
+  name: string;
+  grade: string;
+}
+
+function KidRows({ kids, setKids }: { kids: KidInput[]; setKids: (kids: KidInput[]) => void }) {
+  const { t } = useI18n();
+  const gradeLabel = useGradeLabel();
+  const update = (index: number, patch: Partial<KidInput>) =>
     setKids(kids.map((kid, i) => (i === index ? { ...kid, ...patch } : kid)));
 
   return (
@@ -15,20 +24,20 @@ function KidRows({ kids, setKids }) {
         <div className="kid-row" key={index}>
           <input
             type="text"
-            placeholder="Kid's first name"
+            placeholder={t('setup.kidNamePh')}
             maxLength={40}
             value={kid.name}
             onChange={e => update(index, { name: e.target.value })}
-            aria-label={`Kid ${index + 1} name`}
+            aria-label={t('setup.kidName', { n: index + 1 })}
           />
           <select
             value={kid.grade}
             onChange={e => update(index, { grade: e.target.value })}
-            aria-label={`Kid ${index + 1} grade`}
+            aria-label={t('setup.kidGrade', { n: index + 1 })}
           >
             {GRADES.map(grade => (
               <option key={grade} value={grade}>
-                {grade === '3' ? '3rd' : `${grade}th`} grade
+                {gradeLabel(grade)}
               </option>
             ))}
           </select>
@@ -36,7 +45,7 @@ function KidRows({ kids, setKids }) {
             <button
               type="button"
               className="icon-btn"
-              aria-label={`Remove kid ${index + 1}`}
+              aria-label={t('setup.removeKid', { n: index + 1 })}
               onClick={() => setKids(kids.filter((_, i) => i !== index))}
             >
               <Trash2 size={18} />
@@ -50,7 +59,7 @@ function KidRows({ kids, setKids }) {
           className="add-kid-btn"
           onClick={() => setKids([...kids, { name: '', grade: '5' }])}
         >
-          <Plus size={16} /> Add another kid
+          <Plus size={16} /> {t('setup.addKid')}
         </button>
       )}
     </div>
@@ -59,38 +68,39 @@ function KidRows({ kids, setKids }) {
 
 function FamilySetup() {
   const { refresh } = useFamily();
-  const [mode, setMode] = useState('signup');
+  const { t, lang, setLang } = useI18n();
+  const [mode, setMode] = useState<'signup' | 'login'>('signup');
   const [familyName, setFamilyName] = useState('');
   const [pin, setPin] = useState('');
-  const [kids, setKids] = useState([{ name: '', grade: '5' }]);
+  const [kids, setKids] = useState<KidInput[]>([{ name: '', grade: '5' }]);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [newCode, setNewCode] = useState(null);
+  const [newCode, setNewCode] = useState<string | null>(null);
 
-  const submitSignup = async event => {
+  const submitSignup = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
     const kidList = kids.filter(kid => kid.name.trim());
     if (!kidList.length) {
-      setError('Add at least one kid so they have a profile to learn with!');
+      setError(t('setup.needKid'));
       return;
     }
     setBusy(true);
     try {
-      const data = await apiJson('/api/family/signup', {
+      const data = await apiJson<{ family: { code: string } }>('/api/family/signup', {
         method: 'POST',
         body: { familyName, pin, children: kidList },
       });
       setNewCode(data.family.code);
     } catch (err) {
-      setError(err.friendly ? err.message : 'Could not create your family - please try again');
+      setError(isApiError(err) && err.friendly ? err.message : t('setup.createFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  const submitLogin = async event => {
+  const submitLogin = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
     setBusy(true);
@@ -98,7 +108,7 @@ function FamilySetup() {
       await apiJson('/api/family/login', { method: 'POST', body: { code, pin } });
       await refresh();
     } catch (err) {
-      setError(err.friendly ? err.message : 'Could not sign in - please try again');
+      setError(isApiError(err) && err.friendly ? err.message : t('setup.signInFailed'));
     } finally {
       setBusy(false);
     }
@@ -109,15 +119,12 @@ function FamilySetup() {
       <div className="setup-screen">
         <div className="setup-card code-reveal">
           <div className="mascot">🎉</div>
-          <h1>Welcome!</h1>
-          <p>Your family code is</p>
+          <h1>{t('setup.welcome')}</h1>
+          <p>{t('setup.yourCode')}</p>
           <div className="family-code">{newCode}</div>
-          <p className="code-note">
-            Write it down! Use this code plus your parent PIN to sign in on other devices, like a
-            phone or the school laptop.
-          </p>
+          <p className="code-note">{t('setup.codeNote')}</p>
           <button className="generate-btn" onClick={() => refresh()}>
-            Let's go!
+            {t('setup.letsGo')}
           </button>
         </div>
       </div>
@@ -126,10 +133,24 @@ function FamilySetup() {
 
   return (
     <div className="setup-screen">
+      <div className="lang-corner">
+        <select
+          value={lang}
+          onChange={e => setLang(e.target.value as Lang)}
+          aria-label={t('parent.language')}
+        >
+          {(Object.keys(LANGUAGE_NAMES) as Lang[]).map(code => (
+            <option key={code} value={code}>
+              {LANGUAGE_NAMES[code]}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <header className="header">
         <div className="mascot">🎓</div>
-        <h1>Homework Coach</h1>
-        <p>Friendly coaches that help kids learn - not just get answers</p>
+        <h1>{t('setup.title')}</h1>
+        <p>{t('setup.tagline')}</p>
       </header>
 
       <div className="setup-card">
@@ -143,7 +164,7 @@ function FamilySetup() {
               setError('');
             }}
           >
-            New family
+            {t('setup.newFamily')}
           </button>
           <button
             role="tab"
@@ -154,17 +175,17 @@ function FamilySetup() {
               setError('');
             }}
           >
-            We have a code
+            {t('setup.haveCode')}
           </button>
         </div>
 
         {mode === 'signup' ? (
           <form onSubmit={submitSignup} className="setup-form">
             <label className="form-field">
-              Family name
+              {t('setup.familyName')}
               <input
                 type="text"
-                placeholder="e.g. The Riveras"
+                placeholder={t('setup.familyNamePh')}
                 maxLength={60}
                 value={familyName}
                 onChange={e => setFamilyName(e.target.value)}
@@ -173,12 +194,12 @@ function FamilySetup() {
             </label>
 
             <label className="form-field">
-              Parent PIN (4-8 digits)
+              {t('setup.parentPin')}
               <input
                 type="password"
                 inputMode="numeric"
                 pattern="\d{4,8}"
-                placeholder="For the parent dashboard"
+                placeholder={t('setup.parentPinPh')}
                 value={pin}
                 onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 required
@@ -186,22 +207,22 @@ function FamilySetup() {
             </label>
 
             <div className="form-field">
-              <span>Who's learning?</span>
+              <span>{t('setup.whoLearning')}</span>
               <KidRows kids={kids} setKids={setKids} />
             </div>
 
             {error && <p className="form-error">{error}</p>}
             <button type="submit" className="generate-btn" disabled={busy}>
-              {busy ? 'Setting up...' : 'Create our family'}
+              {busy ? t('setup.creating') : t('setup.createFamily')}
             </button>
           </form>
         ) : (
           <form onSubmit={submitLogin} className="setup-form">
             <label className="form-field">
-              Family code
+              {t('setup.familyCode')}
               <input
                 type="text"
-                placeholder="e.g. ABC-123"
+                placeholder={t('setup.codePh')}
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase())}
                 maxLength={7}
@@ -210,7 +231,7 @@ function FamilySetup() {
             </label>
 
             <label className="form-field">
-              Parent PIN
+              {t('setup.parentPinShort')}
               <input
                 type="password"
                 inputMode="numeric"
@@ -222,7 +243,7 @@ function FamilySetup() {
 
             {error && <p className="form-error">{error}</p>}
             <button type="submit" className="generate-btn" disabled={busy}>
-              <KeyRound size={18} /> {busy ? 'Signing in...' : 'Sign in'}
+              <KeyRound size={18} /> {busy ? t('setup.signingIn') : t('setup.signIn')}
             </button>
           </form>
         )}
