@@ -1,7 +1,10 @@
-const nodemailer = require('nodemailer');
-const { familySummary, childProgress, buildDigestHtml } = require('./reporting');
+import nodemailer from 'nodemailer';
+import type Database from 'better-sqlite3';
+import { familySummary, childProgress, buildDigestHtml, type ChildProgress } from './reporting';
+import { logger } from './logger';
+import type { ChildRow, FamilyRow } from './types';
 
-const smtpConfigured = () => Boolean(process.env.SMTP_HOST);
+export const smtpConfigured = (): boolean => Boolean(process.env.SMTP_HOST);
 
 function createTransport() {
   const port = Number(process.env.SMTP_PORT || 587);
@@ -15,20 +18,25 @@ function createTransport() {
   });
 }
 
-function digestForFamily(db, family) {
+export function digestForFamily(db: Database.Database, family: FamilyRow): string {
   const summary = familySummary(db, family);
-  const progressByChildId = {};
-  for (const child of db.prepare('SELECT * FROM children WHERE family_id = ?').all(family.id)) {
+  const progressByChildId: Record<string, ChildProgress> = {};
+  const children = db
+    .prepare('SELECT * FROM children WHERE family_id = ?')
+    .all(family.id) as ChildRow[];
+  for (const child of children) {
     progressByChildId[child.id] = childProgress(db, child);
   }
   return buildDigestHtml(family, summary, progressByChildId);
 }
 
-async function sendWeeklyDigests(db) {
-  if (!smtpConfigured()) return { sent: 0, reason: 'smtp-not-configured' };
+export async function sendWeeklyDigests(db: Database.Database): Promise<{ sent: number }> {
+  if (!smtpConfigured()) return { sent: 0 };
 
   const transport = createTransport();
-  const families = db.prepare("SELECT * FROM families WHERE digest_email != ''").all();
+  const families = db
+    .prepare("SELECT * FROM families WHERE digest_email != ''")
+    .all() as FamilyRow[];
 
   let sent = 0;
   for (const family of families) {
@@ -41,22 +49,22 @@ async function sendWeeklyDigests(db) {
       });
       sent++;
     } catch (error) {
-      console.warn(`Digest to ${family.name} failed:`, error.message);
+      logger.warn({ family: family.name, err: (error as Error).message }, 'digest send failed');
     }
   }
   return { sent };
 }
 
 // The key for "have we sent this week's digest": the date of the most recent Sunday.
-function currentDigestKey(date = new Date()) {
+export function currentDigestKey(date = new Date()): string {
   const sunday = new Date(date.getTime() - date.getUTCDay() * 24 * 60 * 60 * 1000);
   return sunday.toISOString().slice(0, 10);
 }
 
 // Checks hourly; sends once per week on Sunday from 17:00 UTC.
-function startWeeklyDigests(db) {
+export function startWeeklyDigests(db: Database.Database): NodeJS.Timeout | null {
   if (!smtpConfigured()) {
-    console.log('Weekly digests: SMTP not configured, emails disabled (preview still works).');
+    logger.info('weekly digests: SMTP not configured, emails disabled (preview still works)');
     return null;
   }
   const getKv = db.prepare('SELECT value FROM kv WHERE key = ?');
@@ -68,19 +76,19 @@ function startWeeklyDigests(db) {
     const nowDate = new Date();
     if (nowDate.getUTCDay() !== 0 || nowDate.getUTCHours() < 17) return;
     const key = currentDigestKey(nowDate);
-    if (getKv.get('digest_last_sent')?.value === key) return;
+    const last = getKv.get('digest_last_sent') as { value: string } | undefined;
+    if (last?.value === key) return;
     const { sent } = await sendWeeklyDigests(db);
     setKv.run('digest_last_sent', key);
-    console.log(`Weekly digests sent: ${sent}`);
+    logger.info({ sent }, 'weekly digests sent');
   };
 
-  check().catch(error => console.warn('Digest check failed:', error.message));
+  check().catch(error => logger.warn({ err: (error as Error).message }, 'digest check failed'));
   const timer = setInterval(
-    () => check().catch(error => console.warn('Digest check failed:', error.message)),
+    () =>
+      check().catch(error => logger.warn({ err: (error as Error).message }, 'digest check failed')),
     60 * 60 * 1000
   );
   timer.unref?.();
   return timer;
 }
-
-module.exports = { smtpConfigured, digestForFamily, sendWeeklyDigests, startWeeklyDigests };

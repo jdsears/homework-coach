@@ -3,21 +3,28 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const XP_VALUES = {
+export const XP_VALUES = {
   chatReply: 5, // each coach reply earned
   attempt: 10, // each practice problem tried
   correctBonus: 5, // extra for getting it right
   challengeBonus: 25, // any day with 3+ practice problems
 };
 
-const LEVEL_SIZE = 150;
+export const LEVEL_SIZE = 150;
 
-function computeXp({
+export interface XpInputs {
+  assistantMessages?: number;
+  attempts?: number;
+  correctAttempts?: number;
+  challengeDays?: number;
+}
+
+export function computeXp({
   assistantMessages = 0,
   attempts = 0,
   correctAttempts = 0,
   challengeDays = 0,
-}) {
+}: XpInputs): number {
   return (
     assistantMessages * XP_VALUES.chatReply +
     attempts * XP_VALUES.attempt +
@@ -26,7 +33,7 @@ function computeXp({
   );
 }
 
-function levelInfo(xp) {
+export function levelInfo(xp: number): { level: number; intoLevel: number; levelSize: number } {
   return {
     level: Math.floor(xp / LEVEL_SIZE) + 1,
     intoLevel: xp % LEVEL_SIZE,
@@ -34,7 +41,7 @@ function levelInfo(xp) {
   };
 }
 
-function previousDay(dateStr) {
+export function previousDay(dateStr: string): string {
   const date = new Date(`${dateStr}T00:00:00Z`);
   return new Date(date.getTime() - DAY_MS).toISOString().slice(0, 10);
 }
@@ -42,7 +49,7 @@ function previousDay(dateStr) {
 // Consecutive active days, scored gently:
 // - today doesn't count against the streak until it's over
 // - one missed "rest day" is forgiven per rolling week of streak
-function computeStreak(activeDates, today) {
+export function computeStreak(activeDates: string[], today: string): number {
   const active = new Set(activeDates);
   let streak = 0;
   let restAvailable = 1;
@@ -62,7 +69,26 @@ function computeStreak(activeDates, today) {
   return streak;
 }
 
-const BADGES = [
+export interface BadgeStats {
+  sessions: number;
+  messages: number;
+  attempts: number;
+  correctAttempts: number;
+  subjectsTried: number;
+  languagesTried: number;
+  photos: number;
+  streak: number;
+}
+
+export interface Badge {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  earned: boolean;
+}
+
+const BADGES: Array<Omit<Badge, 'earned'> & { test: (stats: BadgeStats) => boolean }> = [
   {
     id: 'first-steps',
     emoji: '🌱',
@@ -128,7 +154,7 @@ const BADGES = [
   },
 ];
 
-function computeBadges(stats) {
+export function computeBadges(stats: BadgeStats): Badge[] {
   return BADGES.map(({ id, emoji, name, description, test }) => ({
     id,
     emoji,
@@ -148,8 +174,21 @@ const CHALLENGE_SUBJECTS = [
   'spanish',
 ];
 
+export interface Challenge {
+  title: string;
+  subject: string;
+  topic: string;
+  goal: number;
+}
+
 // A weak topic (when there is one) beats the weekday rotation.
-function dailyChallenge({ weakTopic, weekdayIndex }) {
+export function dailyChallenge({
+  weakTopic,
+  weekdayIndex,
+}: {
+  weakTopic: { subject: string; topic: string } | null;
+  weekdayIndex: number;
+}): Challenge {
   if (weakTopic) {
     return {
       title: `Practice 3 problems on ${weakTopic.topic}`,
@@ -161,14 +200,3 @@ function dailyChallenge({ weakTopic, weekdayIndex }) {
   const subject = CHALLENGE_SUBJECTS[((weekdayIndex % 7) + 7) % 7];
   return { title: `Try 3 practice problems in ${subject}`, subject, topic: '', goal: 3 };
 }
-
-module.exports = {
-  XP_VALUES,
-  LEVEL_SIZE,
-  computeXp,
-  levelInfo,
-  computeStreak,
-  computeBadges,
-  dailyChallenge,
-  previousDay,
-};

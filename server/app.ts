@@ -1,14 +1,16 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const { z } = require('zod');
-const { zodOutputFormat } = require('@anthropic-ai/sdk/helpers/zod');
+import express, { type Request, type Response } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import { pinoHttp } from 'pino-http';
+import type Database from 'better-sqlite3';
 
-const {
+import {
   SYSTEM_PROMPTS,
   CHEAT_REDIRECT,
   detectCheatAttempt,
@@ -19,27 +21,36 @@ const {
   graderUserPrompt,
   MEMORY_SYSTEM,
   memoryUserPrompt,
-} = require('./prompts');
-const {
-  streamChat,
-  parseStructured,
-  fastParse,
-  extractText,
-  totalInputTokens,
-} = require('./claude');
-const auth = require('./auth');
-const { familySummary, childProgress } = require('./reporting');
-const { digestForFamily } = require('./mailer');
+  personaSystemPrompt,
+} from './prompts';
+import { streamChat, parseStructured, fastParse, extractText, totalInputTokens } from './claude';
+import * as auth from './auth';
+import { familySummary, childProgress } from './reporting';
+import { digestForFamily } from './mailer';
+import { logger } from './logger';
+import type {
+  AnthropicLike,
+  ChildRow,
+  MessageRow,
+  PersonaRow,
+  ProblemRow,
+  ReviewRow,
+  SessionRow,
+} from './types';
 
 const GRADES = ['3', '4', '5', '6', '7', '8'];
 const HISTORY_WINDOW = 24; // messages sent to the model per turn
 const MAX_MESSAGE_CHARS = 2000;
 const MEMORY_EVERY_N_MESSAGES = 8; // refresh child memory this often per session
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_PERSONAS = 5;
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BASE64 = 5 * 1024 * 1024; // ~3.7MB of actual image
 const PHOTO_HISTORY_NOTE = '[The student attached a photo of their homework with this message]';
+
+// Spaced repetition: days until each next review after a miss enters the queue
+const REVIEW_INTERVALS = [1, 3, 7, 14];
 
 const now = () => new Date().toISOString();
 
@@ -61,26 +72,44 @@ const PracticeSetSchema = z.object({
     .min(1)
     .max(5),
 });
+type PracticeSet = z.infer<typeof PracticeSetSchema>;
 
 const GradeSchema = z.object({
   correct: z.boolean(),
   feedback: z.string(),
 });
+type GradeResult = z.infer<typeof GradeSchema>;
 
 const ClassifierSchema = z.object({
   answer_fishing: z.boolean(),
   frustration: z.number(),
   topic: z.string(),
 });
+type ClassifierResult = z.infer<typeof ClassifierSchema>;
 
 const MemorySchema = z.object({
   memory: z.string(),
 });
+type MemoryResult = z.infer<typeof MemorySchema>;
 
-// Spaced repetition: days until each next review after a miss enters the queue
-const REVIEW_INTERVALS = [1, 3, 7, 14];
+export interface AppConfig {
+  isProd?: boolean;
+  cookieSecret?: string;
+  allowedOrigins?: string[];
+  dailyTokenBudget?: number;
+  rateLimits?: boolean;
+  httpLogging?: boolean;
+}
 
-function createApp({ db, anthropic, config = {} }) {
+export function createApp({
+  db,
+  anthropic,
+  config = {},
+}: {
+  db: Database.Database;
+  anthropic: AnthropicLike;
+  config?: AppConfig;
+}) {
   const {
     isProd = process.env.NODE_ENV === 'production',
     cookieSecret = process.env.COOKIE_SECRET || 'dev-secret-change-me',
@@ -89,10 +118,20 @@ function createApp({ db, anthropic, config = {} }) {
       : ['http://localhost:3000'],
     dailyTokenBudget = Number(process.env.DAILY_TOKEN_BUDGET || 300000),
     rateLimits = true,
+    httpLogging = isProd,
   } = config;
 
   const app = express();
   app.set('trust proxy', 1);
+
+  if (httpLogging) {
+    app.use(
+      pinoHttp({
+        logger,
+        autoLogging: { ignore: req => !(req.url || '').startsWith('/api') },
+      })
+    );
+  }
 
   app.use(
     helmet({
@@ -199,25 +238,6 @@ function createApp({ db, anthropic, config = {} }) {
        ON CONFLICT(child_id, subject, topic) DO UPDATE SET
          score = excluded.score, attempts = mastery.attempts + 1, updated_at = excluded.updated_at`
     ),
-    weeklySessions: db.prepare(
-      `SELECT COUNT(*) AS total FROM sessions s
-       JOIN children c ON c.id = s.child_id
-       WHERE c.family_id = ? AND s.started_at >= ?`
-    ),
-    weeklySubjectCounts: db.prepare(
-      `SELECT s.subject AS subject, COUNT(m.id) AS count FROM messages m
-       JOIN sessions s ON s.id = m.session_id
-       JOIN children c ON c.id = s.child_id
-       WHERE c.family_id = ? AND m.created_at >= ?
-       GROUP BY s.subject`
-    ),
-    weeklyStruggles: db.prepare(
-      `SELECT st.subject AS subject, st.type AS type, st.created_at AS timestamp FROM struggles st
-       JOIN sessions s ON s.id = st.session_id
-       JOIN children c ON c.id = s.child_id
-       WHERE c.family_id = ? AND st.created_at >= ?
-       ORDER BY st.created_at DESC`
-    ),
     reviewByProblem: db.prepare('SELECT * FROM review_queue WHERE problem_id = ?'),
     insertReview: db.prepare(
       'INSERT INTO review_queue (child_id, problem_id, due_at, interval_index, retired, created_at) VALUES (?, ?, ?, 0, 0, ?)'
@@ -239,12 +259,21 @@ function createApp({ db, anthropic, config = {} }) {
       'SELECT COUNT(*) AS total FROM review_queue WHERE child_id = ? AND retired = 0 AND due_at <= ?'
     ),
     updateDigestEmail: db.prepare('UPDATE families SET digest_email = ? WHERE id = ?'),
+    personasByFamily: db.prepare(
+      'SELECT id, name, emoji, description FROM personas WHERE family_id = ? ORDER BY created_at, id'
+    ),
+    personaById: db.prepare('SELECT * FROM personas WHERE id = ?'),
+    personaCount: db.prepare('SELECT COUNT(*) AS total FROM personas WHERE family_id = ?'),
+    insertPersona: db.prepare(
+      'INSERT INTO personas (id, family_id, name, emoji, description, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ),
+    deletePersona: db.prepare('DELETE FROM personas WHERE id = ?'),
   };
 
   // A miss puts the problem in the review queue; each later success stretches
   // the interval (1d → 3d → 7d → 14d), and it retires after the last one.
-  const updateReviewQueue = (childId, problemId, correct) => {
-    const row = stmts.reviewByProblem.get(problemId);
+  const updateReviewQueue = (childId: string, problemId: number, correct: boolean): void => {
+    const row = stmts.reviewByProblem.get(problemId) as ReviewRow | undefined;
     if (correct) {
       if (!row || row.retired) return;
       const nextIndex = row.interval_index + 1;
@@ -264,22 +293,30 @@ function createApp({ db, anthropic, config = {} }) {
     }
   };
 
-  const validKidInput = kid =>
-    kid &&
-    typeof kid.name === 'string' &&
-    kid.name.trim() &&
-    kid.name.trim().length <= 40 &&
-    GRADES.includes(String(kid.grade));
+  const validKidInput = (kid: { name?: unknown; grade?: unknown } | null | undefined): boolean =>
+    Boolean(
+      kid &&
+      typeof kid.name === 'string' &&
+      kid.name.trim() &&
+      kid.name.trim().length <= 40 &&
+      GRADES.includes(String(kid.grade))
+    );
 
-  const overBudget = familyId => {
+  const overBudget = (familyId: string): boolean => {
     const since = new Date(Date.now() - DAY_MS).toISOString();
-    return stmts.familyTokensSince.get(familyId, since).total >= dailyTokenBudget;
+    return (
+      (stmts.familyTokensSince.get(familyId, since) as { total: number }).total >= dailyTokenBudget
+    );
   };
 
   const BUDGET_MESSAGE =
     "Wow, we've done a LOT of learning today! 🌟 The coaches need a rest - come back tomorrow!";
 
-  const logUsage = (familyId, kind, usage) => {
+  const logUsage = (
+    familyId: string,
+    kind: string,
+    usage: { input_tokens?: number; output_tokens?: number } | undefined
+  ): void => {
     stmts.insertUsage.run(
       familyId,
       kind,
@@ -289,28 +326,46 @@ function createApp({ db, anthropic, config = {} }) {
     );
   };
 
-  const childForFamily = (childId, familyId) => {
-    const child = childId ? stmts.childById.get(childId) : null;
+  const childForFamily = (childId: unknown, familyId: string): ChildRow | null => {
+    const child = childId ? (stmts.childById.get(String(childId)) as ChildRow | undefined) : null;
     return child && child.family_id === familyId ? child : null;
   };
 
-  const normalizeTopic = topic =>
+  const normalizeTopic = (topic: unknown): string =>
     String(topic || '')
       .trim()
       .toLowerCase()
       .slice(0, 100);
 
+  // Resolve a subject key to a base system prompt. Built-in subjects use their
+  // coach persona; "p:<id>" resolves to one of the family's custom coaches.
+  const resolveSubject = (subject: unknown, familyId: string): string | null => {
+    if (typeof subject !== 'string') return null;
+    if (subject.startsWith('p:')) {
+      const persona = stmts.personaById.get(subject.slice(2)) as PersonaRow | undefined;
+      if (!persona || persona.family_id !== familyId) return null;
+      return personaSystemPrompt(persona);
+    }
+    return SYSTEM_PROMPTS[subject as keyof typeof SYSTEM_PROMPTS] || null;
+  };
+
   // Fire-and-forget: label the new message, log honest struggle signals.
-  const classifyMessage = (session, subject, history, message, familyId) => {
+  const classifyMessage = (
+    session: { id: string },
+    subject: string,
+    history: Array<{ role: string; content: string }>,
+    message: string,
+    familyId: string
+  ): void => {
     fastParse(anthropic, {
       system: CLASSIFIER_SYSTEM,
       messages: [{ role: 'user', content: classifierUserPrompt(history, message) }],
-      format: zodOutputFormat(ClassifierSchema),
+      format: zodOutputFormat(ClassifierSchema) as unknown as Record<string, unknown>,
       maxTokens: 300,
     })
       .then(response => {
         logUsage(familyId, 'classifier', response.usage);
-        const result = response.parsed_output;
+        const result = response.parsed_output as ClassifierResult | null;
         if (!result) return;
         const topicNote = result.topic ? ` (${result.topic.slice(0, 50)})` : '';
         if (result.answer_fishing) {
@@ -332,15 +387,16 @@ function createApp({ db, anthropic, config = {} }) {
           );
         }
       })
-      .catch(error => console.warn('Classifier skipped:', error.message));
+      .catch(error => logger.warn({ err: (error as Error).message }, 'classifier skipped'));
   };
 
   // Fire-and-forget: refresh the coach's memory of this child periodically.
-  const maybeUpdateMemory = (session, child, familyId) => {
-    const count = stmts.sessionMessageCount.get(session.id).total;
+  const maybeUpdateMemory = (session: SessionRow, child: ChildRow, familyId: string): void => {
+    const count = (stmts.sessionMessageCount.get(session.id) as { total: number }).total;
     if (count === 0 || count % MEMORY_EVERY_N_MESSAGES !== 0) return;
-    const transcript = stmts.recentMessages
-      .all(session.id, MEMORY_EVERY_N_MESSAGES + 4)
+    const transcript = (
+      stmts.recentMessages.all(session.id, MEMORY_EVERY_N_MESSAGES + 4) as MessageRow[]
+    )
       .reverse()
       .map(row => ({ role: row.role, content: row.content }));
     fastParse(anthropic, {
@@ -356,18 +412,18 @@ function createApp({ db, anthropic, config = {} }) {
           }),
         },
       ],
-      format: zodOutputFormat(MemorySchema),
+      format: zodOutputFormat(MemorySchema) as unknown as Record<string, unknown>,
       maxTokens: 500,
     })
       .then(response => {
         logUsage(familyId, 'memory', response.usage);
-        const memory = response.parsed_output?.memory;
+        const memory = (response.parsed_output as MemoryResult | null)?.memory;
         if (memory) stmts.updateChildMemory.run(memory.slice(0, 2000), child.id);
       })
-      .catch(error => console.warn('Memory update skipped:', error.message));
+      .catch(error => logger.warn({ err: (error as Error).message }, 'memory update skipped'));
   };
 
-  const buildSystemPrompt = (subject, child) => {
+  const buildSystemPrompt = (base: string, child: ChildRow): Array<Record<string, unknown>> => {
     const studentContext =
       `The student's name is ${child.name} and they are in grade ${child.grade}. ` +
       'Use their name naturally now and then.' +
@@ -375,14 +431,15 @@ function createApp({ db, anthropic, config = {} }) {
         ? `\n\nWhat you remember about ${child.name} from earlier sessions: ${child.memory}`
         : '');
     return [
-      // Stable per-subject block first so prompt caching can kick in as prompts grow
-      { type: 'text', text: SYSTEM_PROMPTS[subject], cache_control: { type: 'ephemeral' } },
+      // Stable prompt block first so prompt caching can kick in as prompts grow
+      { type: 'text', text: base, cache_control: { type: 'ephemeral' } },
       { type: 'text', text: studentContext },
     ];
   };
 
-  const masteryNoteFor = (child, subject, topic) => {
-    const row = stmts.masteryGet.get(child.id, subject, topic);
+  const masteryNoteFor = (child: ChildRow, subject: string, topic: string): string => {
+    const row = stmts.masteryGet.get(child.id, subject, topic) as
+      { score: number; attempts: number } | undefined;
     if (!row || row.attempts < 3) {
       return 'Mix difficulties 1-2 with one stretch problem.';
     }
@@ -399,8 +456,12 @@ function createApp({ db, anthropic, config = {} }) {
   // Family & auth
   // ---------------------------------------------------------------------------
 
-  app.post('/api/family/signup', (req, res) => {
-    const { familyName, pin, children } = req.body || {};
+  app.post('/api/family/signup', (req: Request, res: Response) => {
+    const { familyName, pin, children } = (req.body || {}) as {
+      familyName?: unknown;
+      pin?: unknown;
+      children?: unknown;
+    };
 
     if (
       !familyName ||
@@ -413,12 +474,15 @@ function createApp({ db, anthropic, config = {} }) {
     if (!/^\d{4,8}$/.test(String(pin ?? ''))) {
       return res.status(400).json({ error: 'The parent PIN needs to be 4-8 digits' });
     }
-    const kidList = Array.isArray(children) ? children.slice(0, 8) : [];
+    const kidList = (Array.isArray(children) ? children.slice(0, 8) : []) as Array<{
+      name: string;
+      grade: string;
+    }>;
     if (!kidList.every(validKidInput)) {
       return res.status(400).json({ error: 'Each kid needs a name and a grade from 3 to 8' });
     }
 
-    let code = null;
+    let code: string | null = null;
     for (let attempt = 0; attempt < 20 && !code; attempt++) {
       const candidate = auth.generateFamilyCode();
       if (!stmts.familyByCode.get(candidate)) code = candidate;
@@ -430,7 +494,7 @@ function createApp({ db, anthropic, config = {} }) {
     const familyId = uuidv4();
     const ts = now();
     const createdKids = db.transaction(() => {
-      stmts.insertFamily.run(familyId, familyName.trim(), code, auth.hashPin(pin), ts);
+      stmts.insertFamily.run(familyId, familyName.trim(), code, auth.hashPin(String(pin)), ts);
       return kidList.map(kid => {
         const id = uuidv4();
         stmts.insertChild.run(id, familyId, kid.name.trim(), String(kid.grade), ts);
@@ -444,10 +508,13 @@ function createApp({ db, anthropic, config = {} }) {
     res.json({ family: { id: familyId, name: familyName.trim(), code }, children: createdKids });
   });
 
-  app.post('/api/family/login', (req, res) => {
-    const { code, pin } = req.body || {};
+  app.post('/api/family/login', (req: Request, res: Response) => {
+    const { code, pin } = (req.body || {}) as { code?: unknown; pin?: unknown };
     const normalized = auth.normalizeFamilyCode(code);
-    const family = normalized ? stmts.familyByCode.get(normalized) : null;
+    const family = normalized
+      ? (stmts.familyByCode.get(normalized) as
+          { id: string; name: string; pin_hash: string } | undefined)
+      : undefined;
     if (!family || !auth.verifyPin(pin, family.pin_hash)) {
       return res.status(401).json({ error: "That family code and PIN don't match" });
     }
@@ -459,22 +526,23 @@ function createApp({ db, anthropic, config = {} }) {
     });
   });
 
-  app.post('/api/family/logout', (req, res) => {
+  app.post('/api/family/logout', (req: Request, res: Response) => {
     res.clearCookie(auth.FAMILY_COOKIE);
     res.clearCookie(auth.PARENT_COOKIE);
     res.json({ ok: true });
   });
 
-  app.get('/api/family/me', requireFamily, (req, res) => {
+  app.get('/api/family/me', requireFamily, (req: Request, res: Response) => {
     res.json({
       family: { id: req.family.id, name: req.family.name },
       children: stmts.childrenByFamily.all(req.family.id),
+      personas: stmts.personasByFamily.all(req.family.id),
       parentVerified: req.signedCookies[auth.PARENT_COOKIE] === req.family.id,
     });
   });
 
-  app.post('/api/parent/verify', requireFamily, (req, res) => {
-    const { pin } = req.body || {};
+  app.post('/api/parent/verify', requireFamily, (req: Request, res: Response) => {
+    const { pin } = (req.body || {}) as { pin?: unknown };
     if (!auth.verifyPin(pin, req.family.pin_hash)) {
       return res.status(401).json({ error: "That PIN doesn't match", needPin: true });
     }
@@ -486,26 +554,24 @@ function createApp({ db, anthropic, config = {} }) {
     res.json({ ok: true });
   });
 
-  app.post('/api/children', requireFamily, requireParent, (req, res) => {
-    const kid = req.body || {};
+  app.post('/api/children', requireFamily, requireParent, (req: Request, res: Response) => {
+    const kid = (req.body || {}) as { name?: string; grade?: string };
     if (!validKidInput(kid)) {
       return res.status(400).json({ error: 'A kid needs a name and a grade from 3 to 8' });
     }
     const id = uuidv4();
-    stmts.insertChild.run(id, req.family.id, kid.name.trim(), String(kid.grade), now());
-    res.json({ id, name: kid.name.trim(), grade: String(kid.grade) });
+    stmts.insertChild.run(id, req.family.id, kid.name!.trim(), String(kid.grade), now());
+    res.json({ id, name: kid.name!.trim(), grade: String(kid.grade) });
   });
 
-  app.patch('/api/children/:id', requireFamily, requireParent, (req, res) => {
-    const child = stmts.childById.get(req.params.id);
+  app.patch('/api/children/:id', requireFamily, requireParent, (req: Request, res: Response) => {
+    const child = stmts.childById.get(req.params.id) as ChildRow | undefined;
     if (!child || child.family_id !== req.family.id) {
       return res.status(404).json({ error: 'No such kid in your family' });
     }
-    const name =
-      typeof req.body?.name === 'string' && req.body.name.trim()
-        ? req.body.name.trim()
-        : child.name;
-    const grade = GRADES.includes(String(req.body?.grade)) ? String(req.body.grade) : child.grade;
+    const body = (req.body || {}) as { name?: unknown; grade?: unknown };
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : child.name;
+    const grade = GRADES.includes(String(body.grade)) ? String(body.grade) : child.grade;
     if (name.length > 40) {
       return res.status(400).json({ error: 'That name is a bit long!' });
     }
@@ -514,31 +580,72 @@ function createApp({ db, anthropic, config = {} }) {
   });
 
   // ---------------------------------------------------------------------------
+  // Custom coach personas
+  // ---------------------------------------------------------------------------
+
+  app.post('/api/personas', requireFamily, requireParent, (req: Request, res: Response) => {
+    const body = (req.body || {}) as { name?: unknown; emoji?: unknown; description?: unknown };
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const emoji = typeof body.emoji === 'string' && body.emoji.trim() ? body.emoji.trim() : '🤖';
+    const description = typeof body.description === 'string' ? body.description.trim() : '';
+
+    if (!name || name.length > 30) {
+      return res.status(400).json({ error: 'Give the coach a name (up to 30 characters)' });
+    }
+    if (emoji.length > 8) {
+      return res.status(400).json({ error: 'Pick a single emoji for the coach' });
+    }
+    if (description.length < 3 || description.length > 200) {
+      return res.status(400).json({ error: 'Describe what they coach (3-200 characters)' });
+    }
+    if ((stmts.personaCount.get(req.family.id) as { total: number }).total >= MAX_PERSONAS) {
+      return res.status(400).json({ error: `You can have up to ${MAX_PERSONAS} custom coaches` });
+    }
+
+    const id = uuidv4();
+    stmts.insertPersona.run(id, req.family.id, name, emoji, description, now());
+    res.json({ id, name, emoji, description });
+  });
+
+  app.delete('/api/personas/:id', requireFamily, requireParent, (req: Request, res: Response) => {
+    const persona = stmts.personaById.get(req.params.id) as PersonaRow | undefined;
+    if (!persona || persona.family_id !== req.family.id) {
+      return res.status(404).json({ error: 'No such coach' });
+    }
+    stmts.deletePersona.run(persona.id);
+    res.json({ ok: true });
+  });
+
+  // ---------------------------------------------------------------------------
   // Session history (resume where you left off)
   // ---------------------------------------------------------------------------
 
-  app.get('/api/sessions/recent', requireFamily, (req, res) => {
+  app.get('/api/sessions/recent', requireFamily, (req: Request, res: Response) => {
     const child = childForFamily(req.query.childId, req.family.id);
     if (!child) return res.status(400).json({ error: 'Pick who is learning first!' });
-    const sessions = stmts.recentSessionsByChild.all(child.id).map(session => ({
-      id: session.id,
-      subject: session.subject,
-      startedAt: session.started_at,
-      lastActiveAt: session.last_active_at,
-      messageCount: session.messageCount,
-      preview: (session.preview || '').slice(0, 80),
-    }));
-    res.json({ sessions });
+    const rows = stmts.recentSessionsByChild.all(child.id) as Array<
+      SessionRow & { messageCount: number; preview: string | null }
+    >;
+    res.json({
+      sessions: rows.map(session => ({
+        id: session.id,
+        subject: session.subject,
+        startedAt: session.started_at,
+        lastActiveAt: session.last_active_at,
+        messageCount: session.messageCount,
+        preview: (session.preview || '').slice(0, 80),
+      })),
+    });
   });
 
-  app.get('/api/sessions/:id/messages', requireFamily, (req, res) => {
-    const session = stmts.sessionById.get(req.params.id);
+  app.get('/api/sessions/:id/messages', requireFamily, (req: Request, res: Response) => {
+    const session = stmts.sessionById.get(req.params.id) as SessionRow | undefined;
     const child = session && childForFamily(session.child_id, req.family.id);
-    if (!child) return res.status(404).json({ error: 'No such session' });
+    if (!session || !child) return res.status(404).json({ error: 'No such session' });
     res.json({
       sessionId: session.id,
       subject: session.subject,
-      messages: stmts.sessionMessages.all(session.id).map(row => ({
+      messages: (stmts.sessionMessages.all(session.id) as MessageRow[]).map(row => ({
         role: row.role,
         content: row.content,
         hasImage: Boolean(row.has_image),
@@ -550,16 +657,24 @@ function createApp({ db, anthropic, config = {} }) {
   // Tutoring chat (Server-Sent Events)
   // ---------------------------------------------------------------------------
 
-  app.post('/api/chat', requireFamily, async (req, res) => {
-    const { childId, sessionId, subject, message, image } = req.body || {};
+  app.post('/api/chat', requireFamily, async (req: Request, res: Response) => {
+    const { childId, sessionId, subject, message, image } = (req.body || {}) as {
+      childId?: unknown;
+      sessionId?: unknown;
+      subject?: unknown;
+      message?: unknown;
+      image?: { media_type?: string; data?: string } | null;
+    };
 
     const child = childForFamily(childId, req.family.id);
     if (!child) {
       return res.status(400).json({ error: 'Pick who is learning first!' });
     }
-    if (!SYSTEM_PROMPTS[subject]) {
+    const systemBase = resolveSubject(subject, req.family.id);
+    if (!systemBase) {
       return res.status(400).json({ error: 'Unknown subject' });
     }
+    const subjectKey = subject as string;
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Message is required' });
     }
@@ -571,7 +686,7 @@ function createApp({ db, anthropic, config = {} }) {
     if (image) {
       const okShape =
         typeof image === 'object' &&
-        IMAGE_TYPES.includes(image.media_type) &&
+        IMAGE_TYPES.includes(image.media_type || '') &&
         typeof image.data === 'string' &&
         image.data.length > 0 &&
         image.data.length <= MAX_IMAGE_BASE64;
@@ -585,23 +700,33 @@ function createApp({ db, anthropic, config = {} }) {
       return res.status(429).json({ error: BUDGET_MESSAGE });
     }
 
-    let session = sessionId ? stmts.sessionById.get(sessionId) : null;
-    if (
-      session &&
-      (!childForFamily(session.child_id, req.family.id) || session.child_id !== child.id)
-    ) {
-      session = null;
+    let session = sessionId
+      ? (stmts.sessionById.get(String(sessionId)) as SessionRow | undefined)
+      : undefined;
+    if (session && session.child_id !== child.id) {
+      session = undefined;
     }
     if (!session) {
-      session = { id: uuidv4(), child_id: child.id, subject };
-      stmts.insertSession.run(session.id, child.id, subject, now(), now());
+      session = {
+        id: uuidv4(),
+        child_id: child.id,
+        subject: subjectKey,
+        started_at: now(),
+        last_active_at: now(),
+      };
+      stmts.insertSession.run(
+        session.id,
+        child.id,
+        subjectKey,
+        session.started_at,
+        session.last_active_at
+      );
     } else {
       stmts.touchSession.run(now(), session.id);
     }
 
     // History BEFORE this message, for the classifier's context
-    const priorHistory = stmts.recentMessages
-      .all(session.id, 6)
+    const priorHistory = (stmts.recentMessages.all(session.id, 6) as MessageRow[])
       .reverse()
       .map(row => ({ role: row.role, content: row.content }));
 
@@ -611,12 +736,13 @@ function createApp({ db, anthropic, config = {} }) {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
-    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const send = (event: string, data: unknown) =>
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
     if (detectCheatAttempt(message)) {
       stmts.insertStruggle.run(
         session.id,
-        subject,
+        subjectKey,
         'Tried to get direct answer',
         message.substring(0, 100),
         now()
@@ -629,35 +755,33 @@ function createApp({ db, anthropic, config = {} }) {
     }
 
     // Semantic labeling runs alongside the reply; it never blocks the stream.
-    classifyMessage(session, subject, priorHistory, message, req.family.id);
+    classifyMessage(session, subjectKey, priorHistory, message, req.family.id);
 
     send('meta', { sessionId: session.id });
 
     try {
-      const history = stmts.recentMessages
-        .all(session.id, HISTORY_WINDOW)
-        .reverse()
-        .map((row, index, rows) => {
-          const isCurrentTurn = index === rows.length - 1 && row.role === 'user';
-          if (isCurrentTurn && image) {
-            return {
-              role: 'user',
-              content: [
-                {
-                  type: 'image',
-                  source: { type: 'base64', media_type: image.media_type, data: image.data },
-                },
-                { type: 'text', text: row.content },
-              ],
-            };
-          }
-          // Older photo turns replay as a text note - we don't store image bytes
-          const content = row.has_image ? `${PHOTO_HISTORY_NOTE}\n${row.content}` : row.content;
-          return { role: row.role, content };
-        });
+      const rows = stmts.recentMessages.all(session.id, HISTORY_WINDOW) as MessageRow[];
+      const history = rows.reverse().map((row, index, all) => {
+        const isCurrentTurn = index === all.length - 1 && row.role === 'user';
+        if (isCurrentTurn && image) {
+          return {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: image.media_type, data: image.data },
+              },
+              { type: 'text', text: row.content },
+            ],
+          };
+        }
+        // Older photo turns replay as a text note - we don't store image bytes
+        const content = row.has_image ? `${PHOTO_HISTORY_NOTE}\n${row.content}` : row.content;
+        return { role: row.role, content };
+      });
 
       const stream = streamChat(anthropic, {
-        system: buildSystemPrompt(subject, child),
+        system: buildSystemPrompt(systemBase, child),
         messages: history,
       });
       stream.on('text', text => send('delta', { text }));
@@ -688,7 +812,7 @@ function createApp({ db, anthropic, config = {} }) {
       send('done', { sessionId: session.id });
       res.end();
     } catch (error) {
-      console.error('Chat error:', error);
+      logger.error({ err: (error as Error).message }, 'chat error');
       send('error', { error: 'Something went wrong. Please try again!' });
       res.end();
     }
@@ -698,13 +822,19 @@ function createApp({ db, anthropic, config = {} }) {
   // Interactive practice
   // ---------------------------------------------------------------------------
 
-  app.post('/api/practice/generate', requireFamily, async (req, res) => {
+  app.post('/api/practice/generate', requireFamily, async (req: Request, res: Response) => {
     try {
-      const { childId, subject, topic } = req.body || {};
+      const { childId, subject, topic } = (req.body || {}) as {
+        childId?: unknown;
+        subject?: unknown;
+        topic?: unknown;
+      };
 
       const child = childForFamily(childId, req.family.id);
       if (!child) return res.status(400).json({ error: 'Pick who is practicing first!' });
-      if (!SYSTEM_PROMPTS[subject]) return res.status(400).json({ error: 'Unknown subject' });
+      if (typeof subject !== 'string' || !(subject in SYSTEM_PROMPTS)) {
+        return res.status(400).json({ error: 'Unknown subject' });
+      }
       if (topic && (typeof topic !== 'string' || topic.length > 100)) {
         return res.status(400).json({ error: 'That topic is a bit too long - try a shorter one!' });
       }
@@ -712,7 +842,7 @@ function createApp({ db, anthropic, config = {} }) {
 
       const cleanTopic = normalizeTopic(topic || subject);
       const response = await parseStructured(anthropic, {
-        system: SYSTEM_PROMPTS[subject],
+        system: SYSTEM_PROMPTS[subject as keyof typeof SYSTEM_PROMPTS],
         messages: [
           {
             role: 'user',
@@ -724,12 +854,12 @@ function createApp({ db, anthropic, config = {} }) {
             }),
           },
         ],
-        format: zodOutputFormat(PracticeSetSchema),
+        format: zodOutputFormat(PracticeSetSchema) as unknown as Record<string, unknown>,
         maxTokens: 2000,
       });
       logUsage(req.family.id, 'practice', response.usage);
 
-      const set = response.parsed_output;
+      const set = response.parsed_output as PracticeSet | null;
       if (!set?.problems?.length) {
         return res.status(500).json({ error: 'Could not generate practice problems - try again!' });
       }
@@ -758,17 +888,19 @@ function createApp({ db, anthropic, config = {} }) {
 
       res.json({ topic: cleanTopic, problems });
     } catch (error) {
-      console.error('Practice generation error:', error);
+      logger.error({ err: (error as Error).message }, 'practice generation error');
       res.status(500).json({ error: 'Could not generate practice problems' });
     }
   });
 
-  app.post('/api/practice/answer', requireFamily, async (req, res) => {
+  app.post('/api/practice/answer', requireFamily, async (req: Request, res: Response) => {
     try {
-      const { problemId, answer } = req.body || {};
-      const problem = problemId ? stmts.problemById.get(problemId) : null;
+      const { problemId, answer } = (req.body || {}) as { problemId?: unknown; answer?: unknown };
+      const problem = problemId
+        ? (stmts.problemById.get(Number(problemId)) as ProblemRow | undefined)
+        : undefined;
       const child = problem && childForFamily(problem.child_id, req.family.id);
-      if (!child) return res.status(404).json({ error: 'No such practice problem' });
+      if (!problem || !child) return res.status(404).json({ error: 'No such practice problem' });
       if (!answer || typeof answer !== 'string' || answer.length > 300) {
         return res.status(400).json({ error: 'Type an answer first!' });
       }
@@ -787,14 +919,15 @@ function createApp({ db, anthropic, config = {} }) {
             }),
           },
         ],
-        format: zodOutputFormat(GradeSchema),
+        format: zodOutputFormat(GradeSchema) as unknown as Record<string, unknown>,
         maxTokens: 300,
       });
       logUsage(req.family.id, 'grading', response.usage);
 
-      const grade = response.parsed_output;
-      if (!grade)
+      const grade = response.parsed_output as GradeResult | null;
+      if (!grade) {
         return res.status(500).json({ error: 'Could not check that answer - try again!' });
+      }
 
       stmts.insertAttempt.run(
         child.id,
@@ -809,7 +942,8 @@ function createApp({ db, anthropic, config = {} }) {
       );
 
       // Nudge the mastery score: slow to rise, a little quicker to catch struggle
-      const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic);
+      const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic) as
+        { score: number } | undefined;
       const score = current ? current.score : 0.5;
       const nextScore = Math.min(1, Math.max(0, score + (grade.correct ? 0.08 : -0.1)));
       stmts.masteryUpsert.run(child.id, problem.subject, problem.topic, nextScore, now());
@@ -821,16 +955,18 @@ function createApp({ db, anthropic, config = {} }) {
         explanation: grade.correct ? problem.explanation : null,
       });
     } catch (error) {
-      console.error('Practice grading error:', error);
+      logger.error({ err: (error as Error).message }, 'practice grading error');
       res.status(500).json({ error: 'Could not check that answer' });
     }
   });
 
-  app.post('/api/practice/reveal', requireFamily, (req, res) => {
-    const { problemId } = req.body || {};
-    const problem = problemId ? stmts.problemById.get(problemId) : null;
+  app.post('/api/practice/reveal', requireFamily, (req: Request, res: Response) => {
+    const { problemId } = (req.body || {}) as { problemId?: unknown };
+    const problem = problemId
+      ? (stmts.problemById.get(Number(problemId)) as ProblemRow | undefined)
+      : undefined;
     const child = problem && childForFamily(problem.child_id, req.family.id);
-    if (!child) return res.status(404).json({ error: 'No such practice problem' });
+    if (!problem || !child) return res.status(404).json({ error: 'No such practice problem' });
 
     // Giving up still teaches - show the answer WITH the explanation, and score it
     stmts.insertAttempt.run(
@@ -844,7 +980,8 @@ function createApp({ db, anthropic, config = {} }) {
       problem.id,
       now()
     );
-    const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic);
+    const current = stmts.masteryGet.get(child.id, problem.subject, problem.topic) as
+      { score: number } | undefined;
     const score = current ? current.score : 0.5;
     stmts.masteryUpsert.run(
       child.id,
@@ -859,36 +996,28 @@ function createApp({ db, anthropic, config = {} }) {
   });
 
   // Problems the child missed earlier that are due for another look
-  app.get('/api/practice/review', requireFamily, (req, res) => {
+  app.get('/api/practice/review', requireFamily, (req: Request, res: Response) => {
     const child = childForFamily(req.query.childId, req.family.id);
     if (!child) return res.status(400).json({ error: 'Pick who is practicing first!' });
     const nowTs = now();
     res.json({
       due: stmts.dueReviews.all(child.id, nowTs),
-      total: stmts.dueReviewCount.get(child.id, nowTs).total,
+      total: (stmts.dueReviewCount.get(child.id, nowTs) as { total: number }).total,
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Progress: XP, streaks, badges, daily challenge
-  // ---------------------------------------------------------------------------
-
-  app.get('/api/progress', requireFamily, (req, res) => {
-    const child = childForFamily(req.query.childId, req.family.id);
-    if (!child) return res.status(400).json({ error: 'Pick who is learning first!' });
-    res.json(childProgress(db, child));
-  });
-
-  app.post('/api/practice/similar', requireFamily, async (req, res) => {
+  app.post('/api/practice/similar', requireFamily, async (req: Request, res: Response) => {
     try {
-      const { problemId } = req.body || {};
-      const original = problemId ? stmts.problemById.get(problemId) : null;
+      const { problemId } = (req.body || {}) as { problemId?: unknown };
+      const original = problemId
+        ? (stmts.problemById.get(Number(problemId)) as ProblemRow | undefined)
+        : undefined;
       const child = original && childForFamily(original.child_id, req.family.id);
-      if (!child) return res.status(404).json({ error: 'No such practice problem' });
+      if (!original || !child) return res.status(404).json({ error: 'No such practice problem' });
       if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
 
       const response = await parseStructured(anthropic, {
-        system: SYSTEM_PROMPTS[original.subject],
+        system: SYSTEM_PROMPTS[original.subject as keyof typeof SYSTEM_PROMPTS],
         messages: [
           {
             role: 'user',
@@ -897,14 +1026,15 @@ function createApp({ db, anthropic, config = {} }) {
               `${original.problem}\n\nProvide problem, hint, answer, explanation, difficulty as requested.`,
           },
         ],
-        format: zodOutputFormat(PracticeSetSchema),
+        format: zodOutputFormat(PracticeSetSchema) as unknown as Record<string, unknown>,
         maxTokens: 800,
       });
       logUsage(req.family.id, 'practice', response.usage);
 
-      const problem = response.parsed_output?.problems?.[0];
-      if (!problem)
+      const problem = (response.parsed_output as PracticeSet | null)?.problems?.[0];
+      if (!problem) {
         return res.status(500).json({ error: 'Could not make a similar one - try again!' });
+      }
 
       const result = stmts.insertProblem.run(
         child.id,
@@ -927,25 +1057,35 @@ function createApp({ db, anthropic, config = {} }) {
         },
       });
     } catch (error) {
-      console.error('Similar problem error:', error);
+      logger.error({ err: (error as Error).message }, 'similar problem error');
       res.status(500).json({ error: 'Could not make a similar one' });
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Progress: XP, streaks, badges, daily challenge
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/progress', requireFamily, (req: Request, res: Response) => {
+    const child = childForFamily(req.query.childId, req.family.id);
+    if (!child) return res.status(400).json({ error: 'Pick who is learning first!' });
+    res.json(childProgress(db, child));
   });
 
   // ---------------------------------------------------------------------------
   // Parent dashboard
   // ---------------------------------------------------------------------------
 
-  app.get('/api/parent/summary', requireFamily, requireParent, (req, res) => {
+  app.get('/api/parent/summary', requireFamily, requireParent, (req: Request, res: Response) => {
     res.json(familySummary(db, req.family));
   });
 
-  app.get('/api/parent/digest', requireFamily, requireParent, (req, res) => {
+  app.get('/api/parent/digest', requireFamily, requireParent, (req: Request, res: Response) => {
     res.json({ html: digestForFamily(db, req.family) });
   });
 
-  app.post('/api/parent/settings', requireFamily, requireParent, (req, res) => {
-    const digestEmail = String(req.body?.digestEmail ?? '').trim();
+  app.post('/api/parent/settings', requireFamily, requireParent, (req: Request, res: Response) => {
+    const digestEmail = String((req.body as { digestEmail?: unknown })?.digestEmail ?? '').trim();
     if (digestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(digestEmail)) {
       return res.status(400).json({ error: "That email doesn't look right" });
     }
@@ -963,12 +1103,10 @@ function createApp({ db, anthropic, config = {} }) {
   if (isProd) {
     const clientDir = path.join(__dirname, '../client/dist');
     app.use(express.static(clientDir));
-    app.get('*', (req, res) => {
+    app.get('*', (req: Request, res: Response) => {
       res.sendFile(path.join(clientDir, 'index.html'));
     });
   }
 
   return app;
 }
-
-module.exports = { createApp };

@@ -1,6 +1,6 @@
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+import fs from 'fs';
+import path from 'path';
+import Database from 'better-sqlite3';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS families (
@@ -105,6 +105,17 @@ CREATE TABLE IF NOT EXISTS kv (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS personas (
+  id TEXT PRIMARY KEY,
+  family_id TEXT NOT NULL REFERENCES families(id),
+  name TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '🤖',
+  description TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_personas_family ON personas(family_id);
+
 CREATE INDEX IF NOT EXISTS idx_children_family ON children(family_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_child ON sessions(child_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
@@ -115,14 +126,16 @@ CREATE INDEX IF NOT EXISTS idx_practice_attempts_child ON practice_attempts(chil
 `;
 
 // Additive migrations for columns that arrived after a table already shipped.
-function ensureColumn(db, table, column, ddl) {
-  const columns = db.pragma(`table_info(${table})`).map(col => col.name);
+function ensureColumn(db: Database.Database, table: string, column: string, ddl: string): void {
+  const columns = (db.pragma(`table_info(${table})`) as Array<{ name: string }>).map(
+    col => col.name
+  );
   if (!columns.includes(column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
   }
 }
 
-function createDb(dbPath) {
+export function createDb(dbPath: string): Database.Database {
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
@@ -138,5 +151,3 @@ function createDb(dbPath) {
 
   return db;
 }
-
-module.exports = { createDb };

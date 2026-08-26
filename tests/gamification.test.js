@@ -5,7 +5,7 @@ import {
   levelInfo,
   computeBadges,
   dailyChallenge,
-} from '../server/gamification.js';
+} from '../server/gamification';
 
 describe('computeStreak', () => {
   const today = '2026-08-26';

@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useI18n } from '../i18n';
 
 // 14-day stacked bar chart: messages + practice per day.
 // Palette (validated for CVD separation on white): indigo = messages, pink = practice.
 const SERIES = [
-  { key: 'messages', label: 'Coach messages', color: '#6366f1' },
-  { key: 'practice', label: 'Practice problems', color: '#f472b6' },
+  { key: 'messages' as const, labelKey: 'chart.messages', color: '#6366f1' },
+  { key: 'practice' as const, labelKey: 'chart.practice', color: '#f472b6' },
 ];
 
 const WIDTH = 560;
@@ -13,26 +14,33 @@ const PLOT_TOP = 8;
 const PLOT_BOTTOM = 128; // leaves room for weekday labels
 const GAP = 2; // surface gap between stacked segments
 
-function weekdayLetter(dateStr) {
+interface Day {
+  date: string;
+  messages: number;
+  practice: number;
+}
+
+function weekdayLetter(dateStr: string): string {
   return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][new Date(`${dateStr}T00:00:00Z`).getUTCDay()];
 }
 
-function niceDate(dateStr) {
+function niceDate(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   });
 }
 
-function ActivityChart({ days }) {
-  const [hover, setHover] = useState(null); // index
+function ActivityChart({ days }: { days: Day[] }) {
+  const { t } = useI18n();
+  const [hover, setHover] = useState<number | null>(null);
 
   const max = Math.max(1, ...days.map(day => day.messages + day.practice));
   const plotHeight = PLOT_BOTTOM - PLOT_TOP;
-  const slot = WIDTH / days.length;
+  const slot = WIDTH / Math.max(days.length, 1);
   const barWidth = Math.min(24, slot - 8);
 
-  const yFor = value => (value / max) * plotHeight;
+  const yFor = (value: number) => (value / max) * plotHeight;
 
   return (
     <div className="activity-chart">
@@ -40,7 +48,7 @@ function ActivityChart({ days }) {
         {SERIES.map(series => (
           <span key={series.key} className="legend-item">
             <span className="legend-swatch" style={{ background: series.color }} />
-            {series.label}
+            {t(series.labelKey)}
           </span>
         ))}
       </div>
@@ -49,7 +57,7 @@ function ActivityChart({ days }) {
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           role="img"
-          aria-label="Learning activity over the last 14 days"
+          aria-label={t('chart.caption')}
           preserveAspectRatio="xMidYMid meet"
         >
           {/* recessive grid */}
@@ -125,26 +133,30 @@ function ActivityChart({ days }) {
           })}
         </svg>
 
-        {hover !== null && (
+        {hover !== null && days[hover] && (
           <div
             className="chart-tooltip"
             style={{ left: `${((hover + 0.5) / days.length) * 100}%` }}
           >
             <strong>{niceDate(days[hover].date)}</strong>
-            <div>{days[hover].messages} messages</div>
-            <div>{days[hover].practice} practice</div>
+            <div>
+              {days[hover].messages} {t('chart.messages').toLowerCase()}
+            </div>
+            <div>
+              {days[hover].practice} {t('chart.practice').toLowerCase()}
+            </div>
           </div>
         )}
       </div>
 
       {/* Accessible data table (also the low-contrast relief for the pink series) */}
       <table className="sr-only">
-        <caption>Learning activity over the last 14 days</caption>
+        <caption>{t('chart.caption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Coach messages</th>
-            <th scope="col">Practice problems</th>
+            <th scope="col">{t('chart.date')}</th>
+            <th scope="col">{t('chart.messages')}</th>
+            <th scope="col">{t('chart.practice')}</th>
           </tr>
         </thead>
         <tbody>

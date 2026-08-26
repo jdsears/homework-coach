@@ -48,6 +48,17 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // KaTeX is the single heaviest dependency - keep it out of the main chunk
+        manualChunks: {
+          katex: ['katex', 'rehype-katex', 'remark-math'],
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {
