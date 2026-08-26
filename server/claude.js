@@ -2,6 +2,8 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 // Tutoring model - env-configurable, current generation by default.
 const CHAT_MODEL = process.env.CLAUDE_MODEL || 'claude-opus-5';
+// Fast model for classification, grading, and memory summaries.
+const FAST_MODEL = process.env.CLAUDE_FAST_MODEL || 'claude-haiku-4-5';
 // Adaptive thinking is on by default on this tier; low effort keeps chat snappy
 // while letting the model think when a problem actually needs it.
 const CHAT_EFFORT = process.env.CLAUDE_EFFORT || 'low';
@@ -33,16 +35,38 @@ function streamChat(anthropic, { system, messages, maxTokens = 1024 }) {
   return anthropic.messages.stream(params);
 }
 
-async function createCompletion(
+// Structured generation on the tutoring model (practice sets and similar).
+function parseStructured(
   anthropic,
-  { system, messages, maxTokens = 1500, effort = 'medium' }
+  { system, messages, format, maxTokens = 2000, effort = 'medium' }
 ) {
-  return anthropic.messages.create({
+  return anthropic.messages.parse({
     model: CHAT_MODEL,
     max_tokens: maxTokens,
     system,
     messages,
-    output_config: { effort },
+    output_config: { format, effort },
+  });
+}
+
+// Structured call on the fast model (classifier, answer grading, memory).
+// Haiku 4.5 does not take output_config.effort, so none is sent.
+function fastParse(anthropic, { system, messages, format, maxTokens = 400 }) {
+  return anthropic.messages.parse({
+    model: FAST_MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages,
+    output_config: { format },
+  });
+}
+
+function fastCompletion(anthropic, { system, messages, maxTokens = 400 }) {
+  return anthropic.messages.create({
+    model: FAST_MODEL,
+    max_tokens: maxTokens,
+    system,
+    messages,
   });
 }
 
@@ -63,9 +87,12 @@ function totalInputTokens(usage = {}) {
 
 module.exports = {
   CHAT_MODEL,
+  FAST_MODEL,
   createAnthropic,
   streamChat,
-  createCompletion,
+  parseStructured,
+  fastParse,
+  fastCompletion,
   extractText,
   totalInputTokens,
 };

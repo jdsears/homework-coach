@@ -54,7 +54,7 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 4. **Hardening.** `helmet`, per-family daily token budget with a friendly "we've done a lot of learning today!" stop, input validation on all routes.
 5. **Engineering hygiene.** Vitest + Supertest API tests (cheat paths, session lifecycle, summary math), ESLint + Prettier, GitHub Actions CI, and migrate CRA → Vite (react-scripts is EOL; Vite halves build times and unblocks modern tooling).
 
-## Phase 2 — The learning-experience leap (the differentiators)
+## Phase 2 — The learning-experience leap (the differentiators) — ✅ shipped in PR #3
 
 1. **📸 Snap your homework.** Claude is multimodal — let kids photograph the worksheet instead of typing out a word problem. The coach sees exactly what the kid sees. This is the single most differentiating feature in the plan and the one families will tell other families about.
 2. **Real math rendering.** KaTeX in chat and practice — a math tutor that can't typeset a fraction isn't a serious math tutor.
