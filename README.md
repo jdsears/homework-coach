@@ -42,7 +42,7 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 22+ and npm
 
 ### Setup
 
