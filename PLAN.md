@@ -81,6 +81,13 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 4. More subjects and custom coach personas ("make me a chess coach"); i18n for the interface itself.
 5. Accessibility pass: ARIA on interactive elements, dyslexia-friendly font option, reduced-motion support.
 
+## Phase 5 — UK curriculum & Further Maths GCSE — ✅ shipped in PR #8
+
+1. **US/UK school systems** — families pick their system at signup (or switch it in parent settings). Grades stay stored as plain numbers; the curriculum decides how they read ("5" → "5th grade" or "Year 5") and which are on offer (US grades 3–8, UK Years 3–11).
+2. **English national curriculum coaching** — UK families get per-subject year-group guides grounded in the current statutory 2014 programmes of study and 9-1 GCSEs (in force until the reformed curriculum starts teaching in September 2028), plus British conventions throughout: British English, £, UK methods, key-stage mapping, KS2 SATs and GCSE awareness.
+3. **Further Maths GCSE** — a new UK-only subject taught by Coach Ada, covering all six content areas of the AQA Level 2 Certificate in Further Mathematics (8365): number, algebra, coordinate geometry, calculus, matrix transformations, and geometry — with exam technique for both papers.
+4. **UI polish** — curriculum picker on signup, curriculum switcher in parent settings, a GCSE badge on the Further Maths card, consistent custom-styled dropdowns, an auto-growing chat input, en-GB speech recognition for UK families, and an active-tab pill in the bottom nav.
+
 ---
 
 ## Sequencing and what to measure

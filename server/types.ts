@@ -7,6 +7,7 @@ export interface FamilyRow {
   pin_hash: string;
   created_at: string;
   digest_email: string;
+  curriculum: 'us' | 'uk';
 }
 
 export interface ChildRow {

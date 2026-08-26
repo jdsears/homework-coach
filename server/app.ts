@@ -11,7 +11,10 @@ import { pinoHttp } from 'pino-http';
 import type Database from 'better-sqlite3';
 
 import {
-  SYSTEM_PROMPTS,
+  SUBJECTS,
+  subjectSystemPrompt,
+  CURRICULA,
+  type Curriculum,
   CHEAT_REDIRECT,
   detectCheatAttempt,
   practiceSetPrompt,
@@ -31,6 +34,7 @@ import { logger } from './logger';
 import type {
   AnthropicLike,
   ChildRow,
+  FamilyRow,
   MessageRow,
   PersonaRow,
   ProblemRow,
@@ -38,7 +42,12 @@ import type {
   SessionRow,
 } from './types';
 
-const GRADES = ['3', '4', '5', '6', '7', '8'];
+// US grades 3-8; UK Years 3-11 (KS2 through GCSE)
+const GRADE_SETS: Record<Curriculum, string[]> = {
+  us: ['3', '4', '5', '6', '7', '8'],
+  uk: ['3', '4', '5', '6', '7', '8', '9', '10', '11'],
+};
+
 const HISTORY_WINDOW = 24; // messages sent to the model per turn
 const MAX_MESSAGE_CHARS = 2000;
 const MEMORY_EVERY_N_MESSAGES = 8; // refresh child memory this often per session
@@ -53,6 +62,9 @@ const PHOTO_HISTORY_NOTE = '[The student attached a photo of their homework with
 const REVIEW_INTERVALS = [1, 3, 7, 14];
 
 const now = () => new Date().toISOString();
+
+const levelLabelFor = (curriculum: Curriculum, grade: string): string =>
+  curriculum === 'uk' ? `Year ${grade}` : `grade ${grade}`;
 
 // ---------------------------------------------------------------------------
 // Structured-output schemas
@@ -179,9 +191,10 @@ export function createApp({
 
   const stmts = {
     insertFamily: db.prepare(
-      'INSERT INTO families (id, name, code, pin_hash, created_at) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO families (id, name, code, pin_hash, created_at, curriculum) VALUES (?, ?, ?, ?, ?, ?)'
     ),
     familyByCode: db.prepare('SELECT * FROM families WHERE code = ?'),
+    updateCurriculum: db.prepare('UPDATE families SET curriculum = ? WHERE id = ?'),
     insertChild: db.prepare(
       'INSERT INTO children (id, family_id, name, grade, created_at) VALUES (?, ?, ?, ?, ?)'
     ),
@@ -293,13 +306,16 @@ export function createApp({
     }
   };
 
-  const validKidInput = (kid: { name?: unknown; grade?: unknown } | null | undefined): boolean =>
+  const validKidInput = (
+    kid: { name?: unknown; grade?: unknown } | null | undefined,
+    curriculum: Curriculum
+  ): boolean =>
     Boolean(
       kid &&
       typeof kid.name === 'string' &&
       kid.name.trim() &&
       kid.name.trim().length <= 40 &&
-      GRADES.includes(String(kid.grade))
+      GRADE_SETS[curriculum].includes(String(kid.grade))
     );
 
   const overBudget = (familyId: string): boolean => {
@@ -338,15 +354,16 @@ export function createApp({
       .slice(0, 100);
 
   // Resolve a subject key to a base system prompt. Built-in subjects use their
-  // coach persona; "p:<id>" resolves to one of the family's custom coaches.
-  const resolveSubject = (subject: unknown, familyId: string): string | null => {
+  // coach persona with the family's curriculum; "p:<id>" resolves to one of
+  // the family's custom coaches.
+  const resolveSubject = (subject: unknown, family: FamilyRow): string | null => {
     if (typeof subject !== 'string') return null;
     if (subject.startsWith('p:')) {
       const persona = stmts.personaById.get(subject.slice(2)) as PersonaRow | undefined;
-      if (!persona || persona.family_id !== familyId) return null;
+      if (!persona || persona.family_id !== family.id) return null;
       return personaSystemPrompt(persona);
     }
-    return SYSTEM_PROMPTS[subject as keyof typeof SYSTEM_PROMPTS] || null;
+    return subjectSystemPrompt(subject, family.curriculum);
   };
 
   // Fire-and-forget: label the new message, log honest struggle signals.
@@ -423,9 +440,13 @@ export function createApp({
       .catch(error => logger.warn({ err: (error as Error).message }, 'memory update skipped'));
   };
 
-  const buildSystemPrompt = (base: string, child: ChildRow): Array<Record<string, unknown>> => {
+  const buildSystemPrompt = (
+    base: string,
+    child: ChildRow,
+    curriculum: Curriculum
+  ): Array<Record<string, unknown>> => {
     const studentContext =
-      `The student's name is ${child.name} and they are in grade ${child.grade}. ` +
+      `The student's name is ${child.name} and they are in ${levelLabelFor(curriculum, child.grade)}. ` +
       'Use their name naturally now and then.' +
       (child.memory
         ? `\n\nWhat you remember about ${child.name} from earlier sessions: ${child.memory}`
@@ -457,10 +478,11 @@ export function createApp({
   // ---------------------------------------------------------------------------
 
   app.post('/api/family/signup', (req: Request, res: Response) => {
-    const { familyName, pin, children } = (req.body || {}) as {
+    const { familyName, pin, children, curriculum } = (req.body || {}) as {
       familyName?: unknown;
       pin?: unknown;
       children?: unknown;
+      curriculum?: unknown;
     };
 
     if (
@@ -474,12 +496,15 @@ export function createApp({
     if (!/^\d{4,8}$/.test(String(pin ?? ''))) {
       return res.status(400).json({ error: 'The parent PIN needs to be 4-8 digits' });
     }
+    const chosenCurriculum: Curriculum = CURRICULA.includes(curriculum as Curriculum)
+      ? (curriculum as Curriculum)
+      : 'us';
     const kidList = (Array.isArray(children) ? children.slice(0, 8) : []) as Array<{
       name: string;
       grade: string;
     }>;
-    if (!kidList.every(validKidInput)) {
-      return res.status(400).json({ error: 'Each kid needs a name and a grade from 3 to 8' });
+    if (!kidList.every(kid => validKidInput(kid, chosenCurriculum))) {
+      return res.status(400).json({ error: 'Each kid needs a name and a school year' });
     }
 
     let code: string | null = null;
@@ -494,7 +519,14 @@ export function createApp({
     const familyId = uuidv4();
     const ts = now();
     const createdKids = db.transaction(() => {
-      stmts.insertFamily.run(familyId, familyName.trim(), code, auth.hashPin(String(pin)), ts);
+      stmts.insertFamily.run(
+        familyId,
+        familyName.trim(),
+        code,
+        auth.hashPin(String(pin)),
+        ts,
+        chosenCurriculum
+      );
       return kidList.map(kid => {
         const id = uuidv4();
         stmts.insertChild.run(id, familyId, kid.name.trim(), String(kid.grade), ts);
@@ -505,15 +537,17 @@ export function createApp({
     res.cookie(auth.FAMILY_COOKIE, familyId, auth.cookieOptions(isProd, auth.YEAR_MS));
     // The parent just set the PIN, so they're verified on this device for now
     res.cookie(auth.PARENT_COOKIE, familyId, auth.cookieOptions(isProd, auth.PARENT_WINDOW_MS));
-    res.json({ family: { id: familyId, name: familyName.trim(), code }, children: createdKids });
+    res.json({
+      family: { id: familyId, name: familyName.trim(), code, curriculum: chosenCurriculum },
+      children: createdKids,
+    });
   });
 
   app.post('/api/family/login', (req: Request, res: Response) => {
     const { code, pin } = (req.body || {}) as { code?: unknown; pin?: unknown };
     const normalized = auth.normalizeFamilyCode(code);
     const family = normalized
-      ? (stmts.familyByCode.get(normalized) as
-          { id: string; name: string; pin_hash: string } | undefined)
+      ? (stmts.familyByCode.get(normalized) as FamilyRow | undefined)
       : undefined;
     if (!family || !auth.verifyPin(pin, family.pin_hash)) {
       return res.status(401).json({ error: "That family code and PIN don't match" });
@@ -521,7 +555,7 @@ export function createApp({
     res.cookie(auth.FAMILY_COOKIE, family.id, auth.cookieOptions(isProd, auth.YEAR_MS));
     res.cookie(auth.PARENT_COOKIE, family.id, auth.cookieOptions(isProd, auth.PARENT_WINDOW_MS));
     res.json({
-      family: { id: family.id, name: family.name },
+      family: { id: family.id, name: family.name, curriculum: family.curriculum },
       children: stmts.childrenByFamily.all(family.id),
     });
   });
@@ -534,7 +568,7 @@ export function createApp({
 
   app.get('/api/family/me', requireFamily, (req: Request, res: Response) => {
     res.json({
-      family: { id: req.family.id, name: req.family.name },
+      family: { id: req.family.id, name: req.family.name, curriculum: req.family.curriculum },
       children: stmts.childrenByFamily.all(req.family.id),
       personas: stmts.personasByFamily.all(req.family.id),
       parentVerified: req.signedCookies[auth.PARENT_COOKIE] === req.family.id,
@@ -556,8 +590,8 @@ export function createApp({
 
   app.post('/api/children', requireFamily, requireParent, (req: Request, res: Response) => {
     const kid = (req.body || {}) as { name?: string; grade?: string };
-    if (!validKidInput(kid)) {
-      return res.status(400).json({ error: 'A kid needs a name and a grade from 3 to 8' });
+    if (!validKidInput(kid, req.family.curriculum)) {
+      return res.status(400).json({ error: 'A kid needs a name and a school year' });
     }
     const id = uuidv4();
     stmts.insertChild.run(id, req.family.id, kid.name!.trim(), String(kid.grade), now());
@@ -571,7 +605,9 @@ export function createApp({
     }
     const body = (req.body || {}) as { name?: unknown; grade?: unknown };
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : child.name;
-    const grade = GRADES.includes(String(body.grade)) ? String(body.grade) : child.grade;
+    const grade = GRADE_SETS[req.family.curriculum].includes(String(body.grade))
+      ? String(body.grade)
+      : child.grade;
     if (name.length > 40) {
       return res.status(400).json({ error: 'That name is a bit long!' });
     }
@@ -670,7 +706,7 @@ export function createApp({
     if (!child) {
       return res.status(400).json({ error: 'Pick who is learning first!' });
     }
-    const systemBase = resolveSubject(subject, req.family.id);
+    const systemBase = resolveSubject(subject, req.family);
     if (!systemBase) {
       return res.status(400).json({ error: 'Unknown subject' });
     }
@@ -781,7 +817,7 @@ export function createApp({
       });
 
       const stream = streamChat(anthropic, {
-        system: buildSystemPrompt(systemBase, child),
+        system: buildSystemPrompt(systemBase, child, req.family.curriculum),
         messages: history,
       });
       stream.on('text', text => send('delta', { text }));
@@ -832,7 +868,7 @@ export function createApp({
 
       const child = childForFamily(childId, req.family.id);
       if (!child) return res.status(400).json({ error: 'Pick who is practicing first!' });
-      if (typeof subject !== 'string' || !(subject in SYSTEM_PROMPTS)) {
+      if (typeof subject !== 'string' || !SUBJECTS.includes(subject)) {
         return res.status(400).json({ error: 'Unknown subject' });
       }
       if (topic && (typeof topic !== 'string' || topic.length > 100)) {
@@ -842,12 +878,13 @@ export function createApp({
 
       const cleanTopic = normalizeTopic(topic || subject);
       const response = await parseStructured(anthropic, {
-        system: SYSTEM_PROMPTS[subject as keyof typeof SYSTEM_PROMPTS],
+        system: subjectSystemPrompt(subject, req.family.curriculum) as string,
         messages: [
           {
             role: 'user',
             content: practiceSetPrompt({
-              grade: child.grade,
+              levelLabel: levelLabelFor(req.family.curriculum, child.grade),
+              curriculum: req.family.curriculum,
               subject,
               topic: cleanTopic,
               masteryNote: masteryNoteFor(child, subject, cleanTopic),
@@ -915,7 +952,7 @@ export function createApp({
               problem: problem.problem,
               answer: problem.answer,
               studentAnswer: answer,
-              grade: child.grade,
+              levelLabel: levelLabelFor(req.family.curriculum, child.grade),
             }),
           },
         ],
@@ -1017,12 +1054,12 @@ export function createApp({
       if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
 
       const response = await parseStructured(anthropic, {
-        system: SYSTEM_PROMPTS[original.subject as keyof typeof SYSTEM_PROMPTS],
+        system: subjectSystemPrompt(original.subject, req.family.curriculum) as string,
         messages: [
           {
             role: 'user',
             content:
-              `Create 1 practice problem very similar to this one (same skill, same difficulty ${original.difficulty}, different numbers/details) for a grade ${child.grade} student:\n\n` +
+              `Create 1 practice problem very similar to this one (same skill, same difficulty ${original.difficulty}, different numbers/details) for a ${levelLabelFor(req.family.curriculum, child.grade)} student:\n\n` +
               `${original.problem}\n\nProvide problem, hint, answer, explanation, difficulty as requested.`,
           },
         ],
@@ -1085,15 +1122,31 @@ export function createApp({
   });
 
   app.post('/api/parent/settings', requireFamily, requireParent, (req: Request, res: Response) => {
-    const digestEmail = String((req.body as { digestEmail?: unknown })?.digestEmail ?? '').trim();
-    if (digestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(digestEmail)) {
-      return res.status(400).json({ error: "That email doesn't look right" });
+    const body = (req.body || {}) as { digestEmail?: unknown; curriculum?: unknown };
+    const result: Record<string, unknown> = { ok: true };
+
+    if ('digestEmail' in body) {
+      const digestEmail = String(body.digestEmail ?? '').trim();
+      if (digestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(digestEmail)) {
+        return res.status(400).json({ error: "That email doesn't look right" });
+      }
+      if (digestEmail.length > 120) {
+        return res.status(400).json({ error: 'That email is too long' });
+      }
+      stmts.updateDigestEmail.run(digestEmail, req.family.id);
+      result.digestEmail = digestEmail;
     }
-    if (digestEmail.length > 120) {
-      return res.status(400).json({ error: 'That email is too long' });
+
+    if ('curriculum' in body) {
+      const curriculum = String(body.curriculum);
+      if (!CURRICULA.includes(curriculum as Curriculum)) {
+        return res.status(400).json({ error: 'Unknown school system' });
+      }
+      stmts.updateCurriculum.run(curriculum, req.family.id);
+      result.curriculum = curriculum;
     }
-    stmts.updateDigestEmail.run(digestEmail, req.family.id);
-    res.json({ ok: true, digestEmail });
+
+    res.json(result);
   });
 
   // ---------------------------------------------------------------------------

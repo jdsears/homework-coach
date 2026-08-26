@@ -21,15 +21,14 @@ import { useFamily } from '../FamilyContext';
 import { LANGUAGE_NAMES, useI18n, useGradeLabel } from '../i18n';
 import { getReadingFont, storeReadingFont, type Lang } from '../prefs';
 import ActivityChart from './ActivityChart';
-import type { ParentSummary } from '../types';
-
-const GRADES = ['3', '4', '5', '6', '7', '8'];
+import { GRADE_SETS, type Curriculum, type ParentSummary } from '../types';
 
 function ParentDashboard() {
   const navigate = useNavigate();
-  const { refresh, signOut, personas } = useFamily();
+  const { family, refresh, signOut, personas } = useFamily();
   const { t, lang, setLang } = useI18n();
   const gradeLabel = useGradeLabel();
+  const grades = GRADE_SETS[family?.curriculum ?? 'us'];
 
   const [data, setData] = useState<ParentSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +53,7 @@ function ParentDashboard() {
   const [digestPreview, setDigestPreview] = useState<string | null>(null);
 
   const [readingFont, setReadingFont] = useState(getReadingFont);
+  const [curriculumBusy, setCurriculumBusy] = useState(false);
 
   const fetchSummary = useCallback(async () => {
     setIsLoading(true);
@@ -164,6 +164,20 @@ function ParentDashboard() {
     const next = !readingFont;
     setReadingFont(next);
     storeReadingFont(next);
+  };
+
+  const changeCurriculum = async (next: Curriculum) => {
+    if (next === family?.curriculum || curriculumBusy) return;
+    setCurriculumBusy(true);
+    try {
+      await apiJson('/api/parent/settings', { method: 'POST', body: { curriculum: next } });
+      await refresh();
+      fetchSummary();
+    } catch (error) {
+      if (isApiError(error) && error.needPin) setNeedPin(true);
+    } finally {
+      setCurriculumBusy(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -339,7 +353,7 @@ function ParentDashboard() {
             onChange={e => setKidGrade(e.target.value)}
             aria-label={t('parent.newKidGrade')}
           >
-            {GRADES.map(grade => (
+            {grades.map(grade => (
               <option key={grade} value={grade}>
                 {gradeLabel(grade)}
               </option>
@@ -504,6 +518,21 @@ function ParentDashboard() {
                 {LANGUAGE_NAMES[code]}
               </option>
             ))}
+          </select>
+        </div>
+        <div className="settings-row">
+          <label htmlFor="curriculum-select">
+            {t('parent.curriculum')}
+            <span className="settings-note">{t('parent.curriculumNote')}</span>
+          </label>
+          <select
+            id="curriculum-select"
+            value={family?.curriculum ?? 'us'}
+            onChange={e => changeCurriculum(e.target.value as Curriculum)}
+            disabled={curriculumBusy}
+          >
+            <option value="us">{t('setup.systemUS')}</option>
+            <option value="uk">{t('setup.systemUK')}</option>
           </select>
         </div>
         <div className="settings-row">

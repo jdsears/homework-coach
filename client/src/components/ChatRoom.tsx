@@ -4,7 +4,7 @@ import { ArrowLeft, Send, Camera, Mic, MicOff, Volume2, X, History } from 'lucid
 import CoachMarkdown from './CoachMarkdown';
 import { streamChat, apiJson, fileToApiImage, isApiError, type ApiImage } from '../api';
 import { useFamily } from '../FamilyContext';
-import { useI18n, useGradeLabel, type TFunction } from '../i18n';
+import { useI18n, useGradeLabel, useSubjectName, type TFunction } from '../i18n';
 import type { ChatMessage, RecentSession } from '../types';
 
 interface SubjectConfig {
@@ -24,11 +24,13 @@ const BUILTIN_COACHES: Record<string, { coach: string; emoji: string }> = {
   history: { coach: 'Coach Clio', emoji: '🏛️' },
   french: { coach: 'Coach Amélie', emoji: '🇫🇷' },
   spanish: { coach: 'Coach Diego', emoji: '🇪🇸' },
+  furthermaths: { coach: 'Coach Ada', emoji: '📐' },
 };
 
 function resolveConfig(
   subject: string | undefined,
   t: TFunction,
+  subjectName: (id: string) => string,
   personas: Array<{ id: string; name: string; emoji: string; description: string }>
 ): SubjectConfig {
   if (subject?.startsWith('p:')) {
@@ -47,7 +49,7 @@ function resolveConfig(
   const key = subject && subject in BUILTIN_COACHES ? subject : 'math';
   return {
     key,
-    name: t(`subject.${key}.name`),
+    name: subjectName(key),
     coach: BUILTIN_COACHES[key].coach,
     emoji: BUILTIN_COACHES[key].emoji,
     starters: [t(`subject.${key}.s1`), t(`subject.${key}.s2`), t(`subject.${key}.s3`)],
@@ -96,11 +98,12 @@ function stripForSpeech(markdown: string): string {
 function ChatRoom() {
   const { subject } = useParams();
   const navigate = useNavigate();
-  const { activeChild, personas } = useFamily();
+  const { family, activeChild, personas } = useFamily();
   const { t } = useI18n();
   const gradeLabel = useGradeLabel();
+  const subjectName = useSubjectName();
 
-  const config = resolveConfig(subject, t, personas);
+  const config = resolveConfig(subject, t, subjectName, personas);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -118,6 +121,14 @@ function ChatRoom() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Grow the input with its content, up to a few lines
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
 
   // Offer to pick up the most recent conversation in this subject
   useEffect(() => {
@@ -185,7 +196,7 @@ function ChatRoom() {
       return;
     }
     const recognition = new SpeechRecognitionImpl();
-    recognition.lang = 'en-US';
+    recognition.lang = family?.curriculum === 'uk' ? 'en-GB' : 'en-US';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = event => {
