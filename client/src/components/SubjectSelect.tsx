@@ -7,10 +7,11 @@ import {
   Landmark,
   Languages,
   RefreshCw,
+  Sigma,
   type LucideIcon,
 } from 'lucide-react';
 import { useFamily } from '../FamilyContext';
-import { useI18n, useGradeLabel } from '../i18n';
+import { useI18n, useGradeLabel, useSubjectName } from '../i18n';
 import ProgressStrip from './ProgressStrip';
 
 interface SubjectMeta {
@@ -18,6 +19,8 @@ interface SubjectMeta {
   coach: string;
   emoji: string;
   icon: LucideIcon;
+  ukOnly?: boolean;
+  badgeKey?: string;
 }
 
 const SUBJECTS: SubjectMeta[] = [
@@ -28,14 +31,27 @@ const SUBJECTS: SubjectMeta[] = [
   { id: 'history', coach: 'Coach Clio', emoji: '🏛️', icon: Landmark },
   { id: 'french', coach: 'Coach Amélie', emoji: '🇫🇷', icon: Languages },
   { id: 'spanish', coach: 'Coach Diego', emoji: '🇪🇸', icon: Languages },
+  {
+    id: 'furthermaths',
+    coach: 'Coach Ada',
+    emoji: '📐',
+    icon: Sigma,
+    ukOnly: true,
+    badgeKey: 'subject.furthermaths.badge',
+  },
 ];
 
 function SubjectSelect() {
-  const { activeChild, selectChild, personas } = useFamily();
+  const { family, activeChild, selectChild, personas } = useFamily();
   const { t } = useI18n();
   const gradeLabel = useGradeLabel();
+  const subjectName = useSubjectName();
 
   if (!activeChild) return null;
+
+  const visibleSubjects = SUBJECTS.filter(
+    subject => !subject.ukOnly || family?.curriculum === 'uk'
+  );
 
   return (
     <div className="subject-select">
@@ -51,7 +67,7 @@ function SubjectSelect() {
       <ProgressStrip />
 
       <div className="subject-grid">
-        {SUBJECTS.map(subject => (
+        {visibleSubjects.map(subject => (
           <Link
             key={subject.id}
             to={`/chat/${subject.id}`}
@@ -61,7 +77,10 @@ function SubjectSelect() {
               <subject.icon size={32} />
             </div>
             <div className="subject-info">
-              <h2>{t(`subject.${subject.id}.name`)}</h2>
+              <h2>
+                {subjectName(subject.id)}
+                {subject.badgeKey && <span className="gcse-badge">{t(subject.badgeKey)}</span>}
+              </h2>
               <p>{t(`subject.${subject.id}.description`)}</p>
               <div className="coach-name">
                 {subject.coach} {subject.emoji}

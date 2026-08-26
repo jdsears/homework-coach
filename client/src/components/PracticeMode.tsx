@@ -3,10 +3,11 @@ import { Sparkles, RefreshCw, Lightbulb, Check, ArrowRight, Eye, Repeat } from '
 import CoachMarkdown from './CoachMarkdown';
 import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
-import { useI18n, useGradeLabel } from '../i18n';
+import { useI18n, useGradeLabel, useSubjectName } from '../i18n';
 import type { PracticeProblem } from '../types';
 
 const SUBJECT_IDS = ['math', 'reading', 'science', 'geography', 'history', 'french', 'spanish'];
+const UK_SUBJECT_IDS = [...SUBJECT_IDS, 'furthermaths'];
 
 interface GradeResponse {
   correct: boolean;
@@ -185,9 +186,11 @@ function ProblemCard({
 }
 
 function PracticeMode() {
-  const { activeChild } = useFamily();
+  const { family, activeChild } = useFamily();
   const { t } = useI18n();
   const gradeLabel = useGradeLabel();
+  const subjectName = useSubjectName();
+  const subjectIds = family?.curriculum === 'uk' ? UK_SUBJECT_IDS : SUBJECT_IDS;
   const [subject, setSubject] = useState('math');
   const [topic, setTopic] = useState('');
   const [problems, setProblems] = useState<PracticeProblem[]>([]);
@@ -301,9 +304,9 @@ function PracticeMode() {
                   value={subject}
                   onChange={e => setSubject(e.target.value)}
                 >
-                  {SUBJECT_IDS.map(id => (
+                  {subjectIds.map(id => (
                     <option key={id} value={id}>
-                      {t(`subject.${id}.name`)}
+                      {subjectName(id)}
                     </option>
                   ))}
                 </select>

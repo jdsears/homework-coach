@@ -19,6 +19,7 @@
   --color-history: #ef4444;
   --color-french: #0ea5e9;
   --color-spanish: #f97316;
+  --color-furthermaths: #0d9488;
 
   /* Backgrounds */
   --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -230,6 +231,9 @@ h2 {
 .subject-card.spanish::before {
   background: var(--color-spanish);
 }
+.subject-card.furthermaths::before {
+  background: var(--color-furthermaths);
+}
 
 .subject-card:hover {
   transform: translateY(-4px);
@@ -270,6 +274,9 @@ h2 {
 }
 .subject-card.spanish .subject-icon {
   background: linear-gradient(135deg, #f97316, #ea580c);
+}
+.subject-card.furthermaths .subject-icon {
+  background: linear-gradient(135deg, #14b8a6, #0f766e);
 }
 
 .subject-icon svg {
@@ -552,6 +559,9 @@ h2 {
 .welcome-avatar.spanish {
   background: linear-gradient(135deg, #ffedd5, #fed7aa);
 }
+.welcome-avatar.furthermaths {
+  background: linear-gradient(135deg, #ccfbf1, #99f6e4);
+}
 
 .welcome-message h2 {
   margin-bottom: var(--space-sm);
@@ -656,6 +666,10 @@ h2 {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
 }
 
 .generate-btn:hover:not(:disabled) {
@@ -844,6 +858,7 @@ h2 {
 
 .nav-item.active {
   color: var(--color-primary);
+  background: #eef2ff;
 }
 
 .nav-item.parent-link {
@@ -1980,6 +1995,63 @@ body.reading-font textarea {
 
 .toggle-btn.on .toggle-knob {
   transform: translateX(22px);
+}
+
+/* ============================================
+   CURRICULUM PICKER & GCSE BADGE
+   ============================================ */
+
+.curriculum-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.field-note {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.gcse-badge {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: var(--space-sm);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: #ccfbf1;
+  color: #0f766e;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================
+   POLISH: CONSISTENT DROPDOWNS
+   ============================================ */
+
+.form-field select,
+.add-kid-form select,
+.kid-row select,
+.practice-options select,
+.settings-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: white;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+.lang-corner select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
 }
 
 /* Visible keyboard focus everywhere interactive */

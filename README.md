@@ -13,13 +13,15 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 - **📖 Reading & Writing Coach** - Essay help, comprehension, vocabulary building
 - **🔬 Science Coach** - Explore how the world works through inquiry
 - **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
+- **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365): surds, the factor theorem, calculus, matrix transformations, circle theorems and more, bridging GCSE and A-level
 - **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints
 - **⚡ Live streaming replies** - The coach starts "typing" instantly
-- **🎯 Grade-appropriate** - Each kid has a profile with their grade (3-8)
+- **🎯 Level-appropriate** - Each kid has a profile with their US grade (3-8) or UK school year (Years 3-11, KS2 through GCSE)
 
 ### For Families
 
 - **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
+- **🇺🇸🇬🇧 US or UK school system** - Pick at signup (or switch in parent settings): UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs), and the Further Maths coach
 - **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
 - **📊 Weekly dashboard** - Time-on-task, per-kid mastery, a 14-day activity chart, and an optional Sunday email digest
 - **🤖 Custom coaches** - Create a coach for anything (chess, coding, piano); they follow the same guide-not-tell rules

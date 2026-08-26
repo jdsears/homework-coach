@@ -1,6 +1,8 @@
 // Lightweight interface i18n: flat dictionaries, {var} interpolation, English fallback.
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { getStoredLang, storeLang, type Lang } from './prefs';
+import { useFamily } from './FamilyContext';
+import type { Curriculum } from './types';
 
 type Dict = Record<string, string>;
 
@@ -39,6 +41,11 @@ const en: Dict = {
   'setup.createFailed': 'Could not create your family - please try again',
   'setup.signInFailed': 'Could not sign in - please try again',
   'setup.grade': '{grade} grade',
+  'setup.system': 'School system',
+  'setup.systemUS': '🇺🇸 US grades',
+  'setup.systemUK': '🇬🇧 UK years',
+  'setup.systemNoteUs': 'Grades 3-8 · US-style coaching',
+  'setup.systemNoteUk': 'Years 3-11 (KS2 to GCSE) · English national curriculum',
 
   'picker.title': "Who's learning today?",
   'picker.noKids': 'No kid profiles yet! A parent can add one from the parent dashboard.',
@@ -86,6 +93,13 @@ const en: Dict = {
   'subject.spanish.s1': 'How do I say hello in Spanish?',
   'subject.spanish.s2': 'Help me with Spanish vocabulary',
   'subject.spanish.s3': 'I need to practice Spanish conversation',
+
+  'subject.furthermaths.name': 'Further Maths',
+  'subject.furthermaths.description': 'GCSE stretch: calculus, matrices & more',
+  'subject.furthermaths.s1': 'Help me differentiate a function',
+  'subject.furthermaths.s2': 'Can we practise matrix transformations?',
+  'subject.furthermaths.s3': "I'm stuck on a circle theorem proof",
+  'subject.furthermaths.badge': 'GCSE',
 
   'chat.back': 'Back to subjects',
   'chat.headerLine': '{name} · {grade} grade · {subject}',
@@ -198,6 +212,9 @@ const en: Dict = {
   'parent.language': 'Interface language',
   'parent.readingFont': 'Easy-reading font',
   'parent.readingFontNote': 'Switches the app to Lexend, a font designed for reading ease.',
+  'parent.curriculum': 'School system',
+  'parent.curriculumNote':
+    "Changes coaching, subjects and year groups. Check each kid's year after switching.",
   'parent.how': 'How It Works',
   'parent.how1':
     'Homework Coach uses the Socratic method - instead of giving answers directly, it asks guiding questions to help your child discover solutions on their own.',
@@ -258,6 +275,12 @@ const fr: Dict = {
   'setup.signInFailed': 'Connexion impossible - réessayez',
   'setup.grade': '{grade}',
 
+  'setup.system': 'Système scolaire',
+  'setup.systemUS': '🇺🇸 Grades US',
+  'setup.systemUK': '🇬🇧 Years UK',
+  'setup.systemNoteUs': 'Grades 3-8 · approche américaine',
+  'setup.systemNoteUk': 'Years 3-11 (KS2 à GCSE) · programme anglais',
+
   'picker.title': "Qui apprend aujourd'hui ?",
   'picker.noKids': 'Pas encore de profil ! Un parent peut en ajouter un depuis le tableau de bord.',
   'picker.openParent': 'Ouvrir le tableau de bord parent',
@@ -304,6 +327,13 @@ const fr: Dict = {
   'subject.spanish.s1': 'Comment dire bonjour en espagnol ?',
   'subject.spanish.s2': 'Aide-moi avec le vocabulaire espagnol',
   'subject.spanish.s3': 'Je veux pratiquer la conversation',
+
+  'subject.furthermaths.name': 'Further Maths',
+  'subject.furthermaths.description': 'Défi GCSE : calcul différentiel, matrices...',
+  'subject.furthermaths.s1': 'Aide-moi à dériver une fonction',
+  'subject.furthermaths.s2': 'On révise les transformations par matrices ?',
+  'subject.furthermaths.s3': 'Je bloque sur une démonstration de cercle',
+  'subject.furthermaths.badge': 'GCSE',
 
   'chat.back': 'Retour aux matières',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -416,6 +446,9 @@ const fr: Dict = {
   'parent.readingFont': 'Police lecture facile',
   'parent.readingFontNote':
     "Bascule l'appli sur Lexend, une police conçue pour faciliter la lecture.",
+  'parent.curriculum': 'Système scolaire',
+  'parent.curriculumNote':
+    "Change le coaching, les matières et les niveaux. Vérifiez l'année de chaque enfant après le changement.",
   'parent.how': 'Comment ça marche',
   'parent.how1':
     'Homework Coach utilise la méthode socratique : au lieu de donner les réponses, il pose des questions pour que votre enfant trouve par lui-même.',
@@ -476,6 +509,12 @@ const es: Dict = {
   'setup.signInFailed': 'No se pudo entrar - inténtenlo de nuevo',
   'setup.grade': '{grade}',
 
+  'setup.system': 'Sistema escolar',
+  'setup.systemUS': '🇺🇸 Grados US',
+  'setup.systemUK': '🇬🇧 Years UK',
+  'setup.systemNoteUs': 'Grados 3-8 · estilo americano',
+  'setup.systemNoteUk': 'Years 3-11 (KS2 a GCSE) · currículo inglés',
+
   'picker.title': '¿Quién aprende hoy?',
   'picker.noKids': '¡Aún no hay perfiles! Un padre puede añadir uno desde el panel.',
   'picker.openParent': 'Abrir el panel de padres',
@@ -522,6 +561,13 @@ const es: Dict = {
   'subject.spanish.s1': '¿Cómo mejoro mi ortografía?',
   'subject.spanish.s2': 'Ayúdame con el vocabulario',
   'subject.spanish.s3': 'Quiero practicar conversación',
+
+  'subject.furthermaths.name': 'Further Maths',
+  'subject.furthermaths.description': 'Desafío GCSE: cálculo, matrices y más',
+  'subject.furthermaths.s1': 'Ayúdame a derivar una función',
+  'subject.furthermaths.s2': '¿Practicamos transformaciones con matrices?',
+  'subject.furthermaths.s3': 'Estoy atascado en una demostración de círculo',
+  'subject.furthermaths.badge': 'GCSE',
 
   'chat.back': 'Volver a las materias',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -633,6 +679,9 @@ const es: Dict = {
   'parent.language': 'Idioma de la interfaz',
   'parent.readingFont': 'Fuente de lectura fácil',
   'parent.readingFontNote': 'Cambia la app a Lexend, una fuente diseñada para leer con facilidad.',
+  'parent.curriculum': 'Sistema escolar',
+  'parent.curriculumNote':
+    'Cambia el coaching, las materias y los cursos. Revisen el año de cada niño tras el cambio.',
   'parent.how': 'Cómo funciona',
   'parent.how1':
     'Homework Coach usa el método socrático: en vez de dar respuestas, hace preguntas para que su hijo descubra las soluciones por sí mismo.',
@@ -706,12 +755,25 @@ export function useI18n(): I18nValue {
   return value;
 }
 
-// Grade labels: English uses ordinals; French/Spanish read naturally as "grade N".
-export function useGradeLabel(): (grade: string) => string {
+// Grade labels: UK families see "Year N"; US English uses ordinals.
+export function useGradeLabel(curriculumOverride?: Curriculum): (grade: string) => string {
   const { lang } = useI18n();
+  const { family } = useFamily();
+  const curriculum = curriculumOverride ?? family?.curriculum ?? 'us';
   return (grade: string) => {
+    if (curriculum === 'uk') return `Year ${grade}`;
     if (lang === 'fr') return `niveau ${grade}`;
     if (lang === 'es') return `grado ${grade}`;
     return `${String(grade) === '3' ? '3rd' : `${grade}th`} grade`;
+  };
+}
+
+// Subject display names, with the UK "Maths" spelling for English.
+export function useSubjectName(): (id: string) => string {
+  const { t, lang } = useI18n();
+  const { family } = useFamily();
+  return (id: string) => {
+    if (id === 'math' && lang === 'en' && family?.curriculum === 'uk') return 'Maths';
+    return t(`subject.${id}.name`);
   };
 }

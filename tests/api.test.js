@@ -731,13 +731,11 @@ describe('custom coach personas', () => {
     expect(me.body.personas).toHaveLength(1);
 
     // Chatting with the persona injects its scaffolded prompt
-    const res = await agent
-      .post('/api/chat')
-      .send({
-        childId: children[0].id,
-        subject: `p:${created.body.id}`,
-        message: 'teach me openings',
-      });
+    const res = await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: `p:${created.body.id}`,
+      message: 'teach me openings',
+    });
     expect(res.status).toBe(200);
     const call = ctx.anthropic.calls.stream.at(-1);
     const system = JSON.stringify(call.system);
@@ -783,5 +781,125 @@ describe('custom coach personas', () => {
       (await agent.post('/api/personas').send({ name: 'One Too Many', description: 'sorry pal' }))
         .status
     ).toBe(400);
+  });
+});
+
+describe('UK curriculum & Further Maths', () => {
+  it('signs up a UK family with school years and validates grades per curriculum', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const body = await signupFamily(agent, {
+      familyName: 'Sears Family',
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '10' }],
+    });
+    expect(body.family.curriculum).toBe('uk');
+
+    const me = await agent.get('/api/family/me');
+    expect(me.body.family.curriculum).toBe('uk');
+    expect(me.body.children[0].grade).toBe('10');
+
+    // Year 12 isn't on offer even for UK families
+    const tooHigh = await request(ctx.app)
+      .post('/api/family/signup')
+      .send({
+        familyName: 'X',
+        pin: '1234',
+        curriculum: 'uk',
+        children: [{ name: 'A', grade: '12' }],
+      });
+    expect(tooHigh.status).toBe(400);
+
+    // A US family can't register a grade-10 kid (US grades stop at 8)
+    const usGrade10 = await request(ctx.app)
+      .post('/api/family/signup')
+      .send({ familyName: 'Y', pin: '1234', children: [{ name: 'B', grade: '10' }] });
+    expect(usGrade10.status).toBe(400);
+  });
+
+  it('coaches UK kids with year groups and British conventions', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, { curriculum: 'uk' });
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'math', message: 'Help me with fractions' });
+
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('Year 5');
+    expect(system).toContain('British English');
+    expect(system).not.toContain('grade 5');
+  });
+
+  it('offers Further Maths GCSE coaching with Coach Ada', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '10' }],
+    });
+
+    const res = await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'furthermaths',
+      message: 'Help me find the stationary points of $y = x^3 - 3x$',
+    });
+    expect(res.status).toBe(200);
+
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('Coach Ada');
+    expect(system).toContain('AQA Level 2 Certificate');
+    expect(system).toContain('Calculus');
+    expect(system).toContain('Year 10');
+  });
+
+  it('lets a parent switch school systems and coaching follows', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent); // defaults to US
+
+    expect((await agent.get('/api/family/me')).body.family.curriculum).toBe('us');
+    expect((await agent.post('/api/parent/settings').send({ curriculum: 'mars' })).status).toBe(
+      400
+    );
+
+    const switched = await agent.post('/api/parent/settings').send({ curriculum: 'uk' });
+    expect(switched.status).toBe(200);
+    expect(switched.body.curriculum).toBe('uk');
+    expect((await agent.get('/api/family/me')).body.family.curriculum).toBe('uk');
+
+    // The same stored grade now reads as a school year in coaching
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'math', message: 'hello' });
+    expect(JSON.stringify(ctx.anthropic.calls.stream.at(-1).system)).toContain('Year 5');
+
+    // And Years 9-11 become valid for editing kids
+    const patched = await agent.patch(`/api/children/${children[0].id}`).send({ grade: '11' });
+    expect(patched.status).toBe(200);
+    expect(patched.body.grade).toBe('11');
+  });
+
+  it('generates UK-flavoured practice sets', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '10' }],
+    });
+
+    const res = await agent
+      .post('/api/practice/generate')
+      .send({ childId: children[0].id, subject: 'furthermaths', topic: 'differentiation' });
+    expect(res.status).toBe(200);
+    expect(res.body.problems).toHaveLength(3);
+
+    const genCall = ctx.anthropic.calls.parse
+      .filter(call => JSON.stringify(call.messages).includes('practice problems for a Year'))
+      .at(-1);
+    expect(genCall).toBeTruthy();
+    expect(genCall.messages[0].content).toContain('Year 10');
+    expect(genCall.messages[0].content).toContain('British English');
   });
 });

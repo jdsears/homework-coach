@@ -4,17 +4,24 @@ import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
 import { LANGUAGE_NAMES, useI18n, useGradeLabel } from '../i18n';
 import type { Lang } from '../prefs';
-
-const GRADES = ['3', '4', '5', '6', '7', '8'];
+import { GRADE_SETS, type Curriculum } from '../types';
 
 interface KidInput {
   name: string;
   grade: string;
 }
 
-function KidRows({ kids, setKids }: { kids: KidInput[]; setKids: (kids: KidInput[]) => void }) {
+function KidRows({
+  kids,
+  setKids,
+  curriculum,
+}: {
+  kids: KidInput[];
+  setKids: (kids: KidInput[]) => void;
+  curriculum: Curriculum;
+}) {
   const { t } = useI18n();
-  const gradeLabel = useGradeLabel();
+  const gradeLabel = useGradeLabel(curriculum);
   const update = (index: number, patch: Partial<KidInput>) =>
     setKids(kids.map((kid, i) => (i === index ? { ...kid, ...patch } : kid)));
 
@@ -35,7 +42,7 @@ function KidRows({ kids, setKids }: { kids: KidInput[]; setKids: (kids: KidInput
             onChange={e => update(index, { grade: e.target.value })}
             aria-label={t('setup.kidGrade', { n: index + 1 })}
           >
-            {GRADES.map(grade => (
+            {GRADE_SETS[curriculum].map(grade => (
               <option key={grade} value={grade}>
                 {gradeLabel(grade)}
               </option>
@@ -70,6 +77,7 @@ function FamilySetup() {
   const { refresh } = useFamily();
   const { t, lang, setLang } = useI18n();
   const [mode, setMode] = useState<'signup' | 'login'>('signup');
+  const [curriculum, setCurriculum] = useState<Curriculum>('us');
   const [familyName, setFamilyName] = useState('');
   const [pin, setPin] = useState('');
   const [kids, setKids] = useState<KidInput[]>([{ name: '', grade: '5' }]);
@@ -90,7 +98,7 @@ function FamilySetup() {
     try {
       const data = await apiJson<{ family: { code: string } }>('/api/family/signup', {
         method: 'POST',
-        body: { familyName, pin, children: kidList },
+        body: { familyName, pin, curriculum, children: kidList },
       });
       setNewCode(data.family.code);
     } catch (err) {
@@ -181,6 +189,33 @@ function FamilySetup() {
 
         {mode === 'signup' ? (
           <form onSubmit={submitSignup} className="setup-form">
+            <div className="form-field">
+              <span>{t('setup.system')}</span>
+              <div className="curriculum-row" role="radiogroup" aria-label={t('setup.system')}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={curriculum === 'us'}
+                  className={`tab-btn ${curriculum === 'us' ? 'active' : ''}`}
+                  onClick={() => setCurriculum('us')}
+                >
+                  {t('setup.systemUS')}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={curriculum === 'uk'}
+                  className={`tab-btn ${curriculum === 'uk' ? 'active' : ''}`}
+                  onClick={() => setCurriculum('uk')}
+                >
+                  {t('setup.systemUK')}
+                </button>
+              </div>
+              <span className="field-note">
+                {curriculum === 'uk' ? t('setup.systemNoteUk') : t('setup.systemNoteUs')}
+              </span>
+            </div>
+
             <label className="form-field">
               {t('setup.familyName')}
               <input
@@ -208,7 +243,7 @@ function FamilySetup() {
 
             <div className="form-field">
               <span>{t('setup.whoLearning')}</span>
-              <KidRows kids={kids} setKids={setKids} />
+              <KidRows kids={kids} setKids={setKids} curriculum={curriculum} />
             </div>
 
             {error && <p className="form-error">{error}</p>}
