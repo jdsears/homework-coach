@@ -81,12 +81,13 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 4. More subjects and custom coach personas ("make me a chess coach"); i18n for the interface itself.
 5. Accessibility pass: ARIA on interactive elements, dyslexia-friendly font option, reduced-motion support.
 
-## Phase 5 — UK curriculum & Further Maths GCSE — ✅ shipped in PRs #8–#9
+## Phase 5 — UK curriculum, Further Maths & A-levels — ✅ shipped in PRs #8–#10
 
-1. **US/UK school systems** — families pick their system at signup (or switch it in parent settings). Grades stay stored as plain numbers; the curriculum decides how they read ("5" → "5th grade" or "Year 5") and which are on offer (US grades 3–8, UK Years 3–11).
+1. **US/UK school systems** — families pick their system at signup (or switch it in parent settings). Grades stay stored as plain numbers; the curriculum decides how they read ("5" → "5th grade" or "Year 5") and which are on offer (US grades 3–8, UK Years 3–13).
 2. **English national curriculum coaching** — UK families get per-subject year-group guides grounded in the current statutory 2014 programmes of study and 9-1 GCSEs (in force until the reformed curriculum starts teaching in September 2028), plus British conventions throughout: British English, £, UK methods, key-stage mapping, KS2 SATs and GCSE awareness.
-3. **Further Maths GCSE** — a new UK-only subject taught by Coach Ada, covering all six content areas of the AQA Level 2 Certificate in Further Mathematics (8365): number, algebra, coordinate geometry, calculus, matrix transformations, and geometry — with exam technique for both papers.
-4. **UI polish** — curriculum picker on signup, curriculum switcher in parent settings, a GCSE badge on the Further Maths card, consistent custom-styled dropdowns, an auto-growing chat input, en-GB speech recognition for UK families, and an active-tab pill in the bottom nav.
+3. **Further Maths** — a new UK-only subject taught by Coach Ada with two pathways: all six content areas of the AQA Level 2 Certificate in Further Mathematics (8365) for Years 9–11, and A-level Further Maths (Core Pure: complex numbers, matrices, further calculus and vectors, polar coordinates, hyperbolics, differential equations) for Years 12–13.
+4. **A-levels in the core subjects** — Years 12–13 (KS5, sixth form) with per-subject A-level guides: Mathematics (pure, statistics, mechanics — DfE-prescribed, board-identical), the three sciences (practical endorsement, maths-skills weightings), English Literature/Language, Geography and History (including the NEA), and French/Spanish (set texts and film, translation, the individual research project). The coaches know content varies by board and ask when it matters.
+5. **UI polish** — curriculum picker on signup, curriculum switcher in parent settings, a GCSE badge on the Further Maths card, consistent custom-styled dropdowns, an auto-growing chat input, en-GB speech recognition for UK families, and an active-tab pill in the bottom nav.
 
 ---
 

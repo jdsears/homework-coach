@@ -45,7 +45,7 @@ import type {
 // US grades 3-8; UK Years 3-11 (KS2 through GCSE)
 const GRADE_SETS: Record<Curriculum, string[]> = {
   us: ['3', '4', '5', '6', '7', '8'],
-  uk: ['3', '4', '5', '6', '7', '8', '9', '10', '11'],
+  uk: ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13'],
 };
 
 const HISTORY_WINDOW = 24; // messages sent to the model per turn

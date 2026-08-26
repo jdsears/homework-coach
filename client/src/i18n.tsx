@@ -44,7 +44,7 @@ const en: Dict = {
   'setup.systemUS': '🇺🇸 US grades',
   'setup.systemUK': '🇬🇧 UK years',
   'setup.systemNoteUs': 'Grades 3-8 · US-style coaching',
-  'setup.systemNoteUk': 'Years 3-11 (KS2 to GCSE) · English national curriculum',
+  'setup.systemNoteUk': 'Years 3-13 (KS2 to A-level) · English national curriculum',
 
   'picker.title': "Who's learning today?",
   'picker.noKids': 'No kid profiles yet! A parent can add one from the parent dashboard.',
@@ -94,11 +94,12 @@ const en: Dict = {
   'subject.spanish.s3': 'I need to practice Spanish conversation',
 
   'subject.furthermaths.name': 'Further Maths',
-  'subject.furthermaths.description': 'GCSE stretch: calculus, matrices & more',
+  'subject.furthermaths.description': 'GCSE & A-level stretch: calculus, matrices & more',
   'subject.furthermaths.s1': 'Help me differentiate a function',
   'subject.furthermaths.s2': 'Can we practise matrix transformations?',
   'subject.furthermaths.s3': "I'm stuck on a circle theorem proof",
   'subject.furthermaths.badge': 'GCSE',
+  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
 
   'chat.back': 'Back to subjects',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -278,7 +279,7 @@ const fr: Dict = {
   'setup.systemUS': '🇺🇸 Grades US',
   'setup.systemUK': '🇬🇧 Years UK',
   'setup.systemNoteUs': 'Grades 3-8 · approche américaine',
-  'setup.systemNoteUk': 'Years 3-11 (KS2 à GCSE) · programme anglais',
+  'setup.systemNoteUk': 'Years 3-13 (KS2 à A-level) · programme anglais',
 
   'picker.title': "Qui apprend aujourd'hui ?",
   'picker.noKids': 'Pas encore de profil ! Un parent peut en ajouter un depuis le tableau de bord.',
@@ -328,11 +329,12 @@ const fr: Dict = {
   'subject.spanish.s3': 'Je veux pratiquer la conversation',
 
   'subject.furthermaths.name': 'Further Maths',
-  'subject.furthermaths.description': 'Défi GCSE : calcul différentiel, matrices...',
+  'subject.furthermaths.description': 'Défi GCSE & A-level : calcul différentiel, matrices...',
   'subject.furthermaths.s1': 'Aide-moi à dériver une fonction',
   'subject.furthermaths.s2': 'On révise les transformations par matrices ?',
   'subject.furthermaths.s3': 'Je bloque sur une démonstration de cercle',
   'subject.furthermaths.badge': 'GCSE',
+  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
 
   'chat.back': 'Retour aux matières',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -512,7 +514,7 @@ const es: Dict = {
   'setup.systemUS': '🇺🇸 Grados US',
   'setup.systemUK': '🇬🇧 Years UK',
   'setup.systemNoteUs': 'Grados 3-8 · estilo americano',
-  'setup.systemNoteUk': 'Years 3-11 (KS2 a GCSE) · currículo inglés',
+  'setup.systemNoteUk': 'Years 3-13 (KS2 a A-level) · currículo inglés',
 
   'picker.title': '¿Quién aprende hoy?',
   'picker.noKids': '¡Aún no hay perfiles! Un padre puede añadir uno desde el panel.',
@@ -562,11 +564,12 @@ const es: Dict = {
   'subject.spanish.s3': 'Quiero practicar conversación',
 
   'subject.furthermaths.name': 'Further Maths',
-  'subject.furthermaths.description': 'Desafío GCSE: cálculo, matrices y más',
+  'subject.furthermaths.description': 'Desafío GCSE y A-level: cálculo, matrices y más',
   'subject.furthermaths.s1': 'Ayúdame a derivar una función',
   'subject.furthermaths.s2': '¿Practicamos transformaciones con matrices?',
   'subject.furthermaths.s3': 'Estoy atascado en una demostración de círculo',
   'subject.furthermaths.badge': 'GCSE',
+  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
 
   'chat.back': 'Volver a las materias',
   'chat.headerLine': '{name} · {grade} · {subject}',
