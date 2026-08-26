@@ -355,6 +355,37 @@ h2 {
   max-width: 90%;
 }
 
+/* Markdown content inside chat bubbles */
+.message p {
+  margin: 0 0 var(--space-sm);
+}
+
+.message p:last-child {
+  margin-bottom: 0;
+}
+
+.message ul,
+.message ol {
+  margin: 0 0 var(--space-sm);
+  padding-left: 1.4em;
+}
+
+.message ul:last-child,
+.message ol:last-child {
+  margin-bottom: 0;
+}
+
+.message code {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.message.user code {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .typing-indicator {
   display: flex;
   gap: 4px;
@@ -577,13 +608,45 @@ h2 {
   border-radius: var(--radius-lg);
   padding: var(--space-xl);
   box-shadow: var(--shadow-md);
-  white-space: pre-wrap;
   line-height: 1.8;
 }
 
 .problems-container h3 {
   color: var(--color-primary);
   margin-bottom: var(--space-md);
+}
+
+.problems-container p {
+  margin: 0 0 var(--space-sm);
+}
+
+/* Hidden hints - revealed on tap */
+.hint-btn {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-full);
+  padding: var(--space-sm) var(--space-md);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin: var(--space-xs) 0 var(--space-md);
+  transition: background 0.2s;
+}
+
+.hint-btn:hover {
+  background: #fde68a;
+}
+
+.hint-box {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin: var(--space-xs) 0 var(--space-md);
+  font-size: 0.95rem;
 }
 
 /* ============================================
@@ -758,6 +821,10 @@ h2 {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
 /* ============================================

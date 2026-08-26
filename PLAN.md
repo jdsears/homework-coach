@@ -30,15 +30,15 @@ Kid-facing education products win on three fronts, and the phases below map to t
 
 Small fixes that repair today's experience and close the worst holes. All are independent and low-risk.
 
-- [ ] Fix ordinal labels ("3rd", not "3th") in the grade picker.
-- [ ] Render markdown in chat and practice output (`react-markdown`) so Claude's formatting stops appearing as literal `**asterisks**`.
-- [ ] Parse `[HINT]` and hide hints behind a tap-to-reveal button.
-- [ ] Remove `"help"` from the struggle heuristic (real fix in Phase 2) so the dashboard stops logging every session as a struggle.
-- [ ] Record cheat-flagged exchanges in the session and return a real session id.
-- [ ] Add `.env.example`; fail fast at startup with a clear message when `ANTHROPIC_API_KEY` is missing; check `response.ok` in client fetches.
-- [ ] Basic abuse guard: `express-rate-limit` on `/api/*`, cap message length, restrict CORS to the app's own origin.
-- [ ] Flatten the repo so `package.json` and the Railway configs sit at the root (or document the Railway root-directory setting) — right now a fresh deploy from the repo root fails auto-detection.
-- [ ] Re-enable pinch zoom (drop `maximum-scale=1, user-scalable=no`) — accessibility basics for a kids' app.
+- [x] Fix ordinal labels ("3rd", not "3th") in the grade picker.
+- [x] Render markdown in chat and practice output (`react-markdown`) so Claude's formatting stops appearing as literal `**asterisks**`.
+- [x] Parse `[HINT]` and hide hints behind a tap-to-reveal button.
+- [x] Remove `"help"` from the struggle heuristic (real fix in Phase 2) so the dashboard stops logging every session as a struggle.
+- [x] Record cheat-flagged exchanges in the session and return a real session id.
+- [x] Add `.env.example`; fail fast at startup with a clear message when `ANTHROPIC_API_KEY` is missing; check `response.ok` in client fetches.
+- [x] Basic abuse guard: `express-rate-limit` on `/api/*`, cap message length, restrict CORS to the app's own origin.
+- [x] Flatten the repo so `package.json` and the Railway configs sit at the root (or document the Railway root-directory setting) — right now a fresh deploy from the repo root fails auto-detection.
+- [x] Re-enable pinch zoom (drop `maximum-scale=1, user-scalable=no`) — accessibility basics for a kids' app.
 
 ## Phase 1 — Foundation: from demo to product (~1–2 weeks)
 

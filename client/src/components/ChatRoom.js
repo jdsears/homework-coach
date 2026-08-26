@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Send, Calculator, BookOpen, FlaskConical, Globe, Landmark, Languages } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 const subjectConfig = {
   math: {
@@ -127,6 +128,13 @@ function ChatRoom() {
         }),
       });
 
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const serverError = new Error(err.error || 'Something went wrong');
+        serverError.friendly = Boolean(err.error);
+        throw serverError;
+      }
+
       const data = await response.json();
 
       if (data.sessionId) {
@@ -137,13 +145,13 @@ function ChatRoom() {
         role: data.cheatDetected ? 'system' : 'assistant',
         content: data.response,
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, {
         role: 'system',
-        content: 'Oops! Something went wrong. Let\'s try again! 🔄',
+        content: error.friendly ? error.message : 'Oops! Something went wrong. Let\'s try again! 🔄',
       }]);
     } finally {
       setIsLoading(false);
@@ -201,7 +209,11 @@ function ChatRoom() {
         ) : (
           messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
-              {msg.content}
+              {msg.role === 'user' ? (
+                msg.content
+              ) : (
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              )}
             </div>
           ))
         )}
