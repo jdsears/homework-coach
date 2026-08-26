@@ -120,6 +120,7 @@ async function signupFamily(agent, overrides = {}) {
   const res = await agent.post('/api/family/signup').send({
     familyName: 'Testers',
     pin: '1234',
+    curriculum: 'us',
     children: [{ name: 'Maya', grade: '5' }],
     ...overrides,
   });
@@ -813,7 +814,12 @@ describe('UK curriculum & Further Maths', () => {
     // A US family can't register a grade-10 kid (US grades stop at 8)
     const usGrade10 = await request(ctx.app)
       .post('/api/family/signup')
-      .send({ familyName: 'Y', pin: '1234', children: [{ name: 'B', grade: '10' }] });
+      .send({
+        familyName: 'Y',
+        pin: '1234',
+        curriculum: 'us',
+        children: [{ name: 'B', grade: '10' }],
+      });
     expect(usGrade10.status).toBe(400);
   });
 
@@ -952,5 +958,17 @@ describe('UK curriculum & Further Maths', () => {
     expect(system).toContain('A-level Further Mathematics');
     expect(system).toContain('complex numbers');
     expect(system).toContain('Year 13');
+  });
+  it('defaults new families to the UK school system', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const res = await agent.post('/api/family/signup').send({
+      familyName: 'Defaults',
+      pin: '1234',
+      children: [{ name: 'Amelia', grade: '13' }], // Year 13 only exists under UK
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.family.curriculum).toBe('uk');
+    expect((await agent.get('/api/family/me')).body.family.curriculum).toBe('uk');
   });
 });

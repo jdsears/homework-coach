@@ -498,7 +498,7 @@ export function createApp({
     }
     const chosenCurriculum: Curriculum = CURRICULA.includes(curriculum as Curriculum)
       ? (curriculum as Curriculum)
-      : 'us';
+      : 'uk';
     const kidList = (Array.isArray(children) ? children.slice(0, 8) : []) as Array<{
       name: string;
       grade: string;

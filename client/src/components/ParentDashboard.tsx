@@ -28,7 +28,7 @@ function ParentDashboard() {
   const { family, refresh, signOut, personas } = useFamily();
   const { t, lang, setLang } = useI18n();
   const gradeLabel = useGradeLabel();
-  const grades = GRADE_SETS[family?.curriculum ?? 'us'];
+  const grades = GRADE_SETS[family?.curriculum ?? 'uk'];
 
   const [data, setData] = useState<ParentSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -548,7 +548,7 @@ function ParentDashboard() {
           </label>
           <select
             id="curriculum-select"
-            value={family?.curriculum ?? 'us'}
+            value={family?.curriculum ?? 'uk'}
             onChange={e => changeCurriculum(e.target.value as Curriculum)}
             disabled={curriculumBusy}
           >
