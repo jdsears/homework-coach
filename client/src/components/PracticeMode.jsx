@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, RefreshCw, Lightbulb, Check, ArrowRight, Eye, Repeat } from 'lucide-react';
 import CoachMarkdown from './CoachMarkdown';
 import { apiJson, gradeLabel } from '../api';
@@ -161,8 +161,39 @@ function PracticeMode() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [finished, setFinished] = useState(false);
+  const [review, setReview] = useState(null); // { due, total }
+
+  // Check for spaced-repetition reviews whenever the setup screen is visible
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeChild || (problems.length > 0 && !finished)) return undefined;
+    apiJson(`/api/practice/review?childId=${activeChild.id}`)
+      .then(data => {
+        if (!cancelled) setReview(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChild, problems.length, finished]);
 
   if (!activeChild) return null;
+
+  const startReview = () => {
+    if (!review?.due?.length) return;
+    setProblems(
+      review.due.map(problem => ({
+        id: problem.id,
+        problem: problem.problem,
+        hint: problem.hint,
+        difficulty: problem.difficulty,
+      }))
+    );
+    setCurrent(0);
+    setResults({});
+    setFinished(false);
+    setReview(null);
+  };
 
   const generateProblems = async () => {
     setIsLoading(true);
@@ -206,6 +237,16 @@ function PracticeMode() {
 
       {problems.length === 0 || finished ? (
         <>
+          {review?.total > 0 && (
+            <button className="review-banner" onClick={startReview}>
+              <span className="review-emoji">🔁</span>
+              <span>
+                <strong>Review time!</strong> {review.total} problem
+                {review.total === 1 ? '' : 's'} from before {review.total === 1 ? 'is' : 'are'}{' '}
+                ready for another try.
+              </span>
+            </button>
+          )}
           {finished && (
             <div className="practice-card score-card">
               <div className="score-big">

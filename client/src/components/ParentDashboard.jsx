@@ -8,11 +8,14 @@ import {
   BookOpen,
   KeyRound,
   LogOut,
+  Mail,
   Plus,
   Users,
+  X,
 } from 'lucide-react';
 import { apiJson, gradeLabel } from '../api';
 import { useFamily } from '../FamilyContext';
+import ActivityChart from './ActivityChart';
 
 const GRADES = ['3', '4', '5', '6', '7', '8'];
 
@@ -32,12 +35,18 @@ function ParentDashboard() {
   const [kidGrade, setKidGrade] = useState('5');
   const [kidError, setKidError] = useState('');
 
+  const [digestEmail, setDigestEmail] = useState('');
+  const [digestSaved, setDigestSaved] = useState(false);
+  const [digestError, setDigestError] = useState('');
+  const [digestPreview, setDigestPreview] = useState(null);
+
   const fetchSummary = useCallback(async () => {
     setIsLoading(true);
     setLoadError(false);
     try {
       const summary = await apiJson('/api/parent/summary');
       setData(summary);
+      setDigestEmail(summary.digestEmail || '');
       setNeedPin(false);
     } catch (error) {
       if (error.needPin) setNeedPin(true);
@@ -76,6 +85,30 @@ function ParentDashboard() {
     } catch (error) {
       if (error.needPin) setNeedPin(true);
       else setKidError(error.friendly ? error.message : 'Could not add that kid - try again');
+    }
+  };
+
+  const saveDigestEmail = async event => {
+    event.preventDefault();
+    setDigestError('');
+    setDigestSaved(false);
+    try {
+      await apiJson('/api/parent/settings', { method: 'POST', body: { digestEmail } });
+      setDigestSaved(true);
+    } catch (error) {
+      if (error.needPin) setNeedPin(true);
+      else setDigestError(error.friendly ? error.message : 'Could not save that - try again');
+    }
+  };
+
+  const previewDigest = async () => {
+    setDigestError('');
+    try {
+      const { html } = await apiJson('/api/parent/digest');
+      setDigestPreview(html);
+    } catch (error) {
+      if (error.needPin) setNeedPin(true);
+      else setDigestError('Could not build the preview - try again');
     }
   };
 
@@ -176,12 +209,12 @@ function ParentDashboard() {
           <div className="stat-label">Sessions this week</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{totalInteractions}</div>
-          <div className="stat-label">Messages</div>
+          <div className="stat-value">{data.totalMinutes}</div>
+          <div className="stat-label">Minutes on task</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data.children?.length || 0}</div>
-          <div className="stat-label">Kids</div>
+          <div className="stat-value">{totalInteractions}</div>
+          <div className="stat-label">Messages</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{totalStruggles}</div>
@@ -191,14 +224,38 @@ function ParentDashboard() {
 
       <div className="section-card">
         <h2>
+          <TrendingUp size={20} /> Last 14 days
+        </h2>
+        <ActivityChart days={data.dailyActivity || []} />
+      </div>
+
+      <div className="section-card">
+        <h2>
           <Users size={20} /> Your kids
         </h2>
         {data.children?.map(kid => (
-          <div key={kid.id} className="kid-summary-row">
-            <strong>{kid.name}</strong>
-            <span>
-              {gradeLabel(kid.grade)} grade · {kid.messageCount} messages this week
-            </span>
+          <div key={kid.id} className="kid-summary">
+            <div className="kid-summary-row">
+              <strong>{kid.name}</strong>
+              <span>
+                {gradeLabel(kid.grade)} grade · {kid.minutes} min · {kid.messageCount} messages ·{' '}
+                {kid.practiceCount} practice
+              </span>
+            </div>
+            {(kid.strengths?.length > 0 || kid.focusAreas?.length > 0) && (
+              <div className="mastery-chips">
+                {kid.strengths?.map(topic => (
+                  <span key={`s-${topic}`} className="mastery-chip strong">
+                    💪 {topic}
+                  </span>
+                ))}
+                {kid.focusAreas?.map(topic => (
+                  <span key={`f-${topic}`} className="mastery-chip focus">
+                    🎯 {topic}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         <form onSubmit={addKid} className="add-kid-form">
@@ -231,29 +288,6 @@ function ParentDashboard() {
           </button>
         </form>
         {kidError && <p className="form-error">{kidError}</p>}
-      </div>
-
-      <div className="section-card">
-        <h2>
-          <TrendingUp size={20} /> This Week's Activity
-        </h2>
-        {data?.subjectBreakdown && Object.entries(data.subjectBreakdown).some(([, v]) => v > 0) ? (
-          <div>
-            {Object.entries(data.subjectBreakdown).map(
-              ([subject, count]) =>
-                count > 0 && (
-                  <div key={subject} style={{ marginBottom: '8px' }}>
-                    <strong style={{ textTransform: 'capitalize' }}>{subject}:</strong> {count}{' '}
-                    messages
-                  </div>
-                )
-            )}
-          </div>
-        ) : (
-          <p style={{ color: '#64748b' }}>
-            No activity this week yet. Encourage your child to start a session!
-          </p>
-        )}
       </div>
 
       {totalStruggles > 0 && (
@@ -301,6 +335,35 @@ function ParentDashboard() {
 
       <div className="section-card">
         <h2>
+          <Mail size={20} /> Weekly Email Digest
+        </h2>
+        <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '12px' }}>
+          Get this summary in your inbox every Sunday. Leave the email empty to turn it off.
+        </p>
+        <form onSubmit={saveDigestEmail} className="add-kid-form">
+          <input
+            type="email"
+            value={digestEmail}
+            onChange={e => {
+              setDigestEmail(e.target.value);
+              setDigestSaved(false);
+            }}
+            placeholder="parent@example.com"
+            maxLength={120}
+            aria-label="Digest email address"
+          />
+          <button type="submit" className="generate-btn digest-save-btn">
+            {digestSaved ? 'Saved ✔' : 'Save'}
+          </button>
+        </form>
+        <button className="hint-btn" onClick={previewDigest} style={{ marginTop: '12px' }}>
+          👀 Preview this week's digest
+        </button>
+        {digestError && <p className="form-error">{digestError}</p>}
+      </div>
+
+      <div className="section-card">
+        <h2>
           <BookOpen size={20} /> How It Works
         </h2>
         <p style={{ marginBottom: '12px' }}>
@@ -316,6 +379,22 @@ function ParentDashboard() {
           this dashboard only shows the type of tricky moment - never their words.
         </p>
       </div>
+
+      {digestPreview && (
+        <div className="digest-modal" role="dialog" aria-label="Digest preview">
+          <div className="digest-modal-card">
+            <button
+              className="icon-btn digest-close"
+              onClick={() => setDigestPreview(null)}
+              aria-label="Close preview"
+            >
+              <X size={18} />
+            </button>
+            {/* Our own server-generated digest HTML */}
+            <div dangerouslySetInnerHTML={{ __html: digestPreview }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   Languages,
   RefreshCw,
 } from 'lucide-react';
+import ProgressStrip from './ProgressStrip';
 import { gradeLabel } from '../api';
 import { useFamily } from '../FamilyContext';
 
@@ -78,6 +79,8 @@ function SubjectSelect() {
           <RefreshCw size={14} /> {gradeLabel(activeChild.grade)} grade · not you?
         </button>
       </header>
+
+      <ProgressStrip />
 
       <div className="subject-grid">
         {subjects.map(subject => (

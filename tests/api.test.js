@@ -608,3 +608,110 @@ describe('parent summary', () => {
     }
   });
 });
+
+describe('progress & gamification API', () => {
+  it('reports XP, streak, badges and daily challenge for a child', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'math', message: 'hi!' });
+
+    const res = await agent.get(`/api/progress?childId=${children[0].id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.xp).toBeGreaterThan(0);
+    expect(res.body.level).toBeGreaterThanOrEqual(1);
+    expect(res.body.streak).toBe(1);
+    expect(res.body.badges.find(badge => badge.id === 'first-steps').earned).toBe(true);
+    expect(res.body.challenge.goal).toBe(3);
+    expect(res.body.challenge.done).toBe(false);
+  });
+
+  it("won't serve another family's progress", async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+    const otherAgent = request.agent(ctx.app);
+    await signupFamily(otherAgent, { familyName: 'Others' });
+    expect((await otherAgent.get(`/api/progress?childId=${children[0].id}`)).status).toBe(400);
+  });
+});
+
+describe('spaced repetition', () => {
+  it('queues misses, serves due reviews without answers, and advances on success', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+    const child = children[0];
+
+    const generated = await agent
+      .post('/api/practice/generate')
+      .send({ childId: child.id, subject: 'math', topic: 'fractions' });
+    const problem = generated.body.problems[0];
+
+    // A reveal counts as a miss and queues the problem for tomorrow
+    await agent.post('/api/practice/reveal').send({ problemId: problem.id });
+    const queued = ctx.db
+      .prepare('SELECT * FROM review_queue WHERE problem_id = ?')
+      .get(problem.id);
+    expect(queued).toBeTruthy();
+    expect(queued.interval_index).toBe(0);
+
+    // Nothing due yet
+    let review = await agent.get(`/api/practice/review?childId=${child.id}`);
+    expect(review.body.total).toBe(0);
+
+    // Time-travel: make it due now
+    ctx.db
+      .prepare('UPDATE review_queue SET due_at = ? WHERE problem_id = ?')
+      .run('2020-01-01T00:00:00.000Z', problem.id);
+    review = await agent.get(`/api/practice/review?childId=${child.id}`);
+    expect(review.body.total).toBe(1);
+    expect(review.body.due[0].id).toBe(problem.id);
+    expect(review.body.due[0]).not.toHaveProperty('answer');
+
+    // Getting it right stretches the interval instead of retiring immediately
+    await agent.post('/api/practice/answer').send({ problemId: problem.id, answer: '3/4' });
+    const advanced = ctx.db
+      .prepare('SELECT * FROM review_queue WHERE problem_id = ?')
+      .get(problem.id);
+    expect(advanced.interval_index).toBe(1);
+    expect(advanced.retired).toBe(0);
+    expect(new Date(advanced.due_at).getTime()).toBeGreaterThan(Date.now());
+  });
+});
+
+describe('parent dashboard v2', () => {
+  it('adds minutes, mastery fields, 14-day activity and digest settings', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'math', message: 'hello' });
+
+    const summary = await agent.get('/api/parent/summary');
+    expect(summary.body.totalMinutes).toBeGreaterThanOrEqual(1);
+    expect(summary.body.dailyActivity).toHaveLength(14);
+    expect(summary.body.children[0]).toHaveProperty('minutes');
+    expect(summary.body.children[0]).toHaveProperty('strengths');
+    expect(summary.body.digestEmail).toBe('');
+
+    expect(
+      (await agent.post('/api/parent/settings').send({ digestEmail: 'not-an-email' })).status
+    ).toBe(400);
+    expect(
+      (await agent.post('/api/parent/settings').send({ digestEmail: 'p@example.com' })).status
+    ).toBe(200);
+    const after = await agent.get('/api/parent/summary');
+    expect(after.body.digestEmail).toBe('p@example.com');
+
+    const digest = await agent.get('/api/parent/digest');
+    expect(digest.status).toBe(200);
+    expect(digest.body.html).toContain('Testers');
+    expect(digest.body.html).toContain('Maya');
+  });
+});

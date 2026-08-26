@@ -90,6 +90,21 @@ CREATE TABLE IF NOT EXISTS mastery (
   PRIMARY KEY (child_id, subject, topic)
 );
 
+CREATE TABLE IF NOT EXISTS review_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  child_id TEXT NOT NULL REFERENCES children(id),
+  problem_id INTEGER NOT NULL UNIQUE REFERENCES practice_problems(id),
+  due_at TEXT NOT NULL,
+  interval_index INTEGER NOT NULL DEFAULT 0,
+  retired INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS kv (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_children_family ON children(family_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_child ON sessions(child_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
@@ -119,6 +134,7 @@ function createDb(dbPath) {
   ensureColumn(db, 'children', 'memory', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'messages', 'has_image', 'INTEGER NOT NULL DEFAULT 0');
   ensureColumn(db, 'practice_attempts', 'problem_id', 'INTEGER');
+  ensureColumn(db, 'families', 'digest_email', "TEXT NOT NULL DEFAULT ''");
 
   return db;
 }

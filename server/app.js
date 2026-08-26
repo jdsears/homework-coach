@@ -28,12 +28,13 @@ const {
   totalInputTokens,
 } = require('./claude');
 const auth = require('./auth');
+const { familySummary, childProgress } = require('./reporting');
+const { digestForFamily } = require('./mailer');
 
 const GRADES = ['3', '4', '5', '6', '7', '8'];
 const HISTORY_WINDOW = 24; // messages sent to the model per turn
 const MAX_MESSAGE_CHARS = 2000;
 const MEMORY_EVERY_N_MESSAGES = 8; // refresh child memory this often per session
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -76,50 +77,8 @@ const MemorySchema = z.object({
   memory: z.string(),
 });
 
-function generateParentTip(strugglesBySubject) {
-  const tips = [];
-  const count = subject => (strugglesBySubject[subject] || []).length;
-
-  if (count('math') > 2) {
-    tips.push(
-      'Your child is working hard on math! Consider using real-world examples at home, like measuring ingredients while cooking.'
-    );
-  }
-  if (count('reading') > 2) {
-    tips.push(
-      'Reading practice is going great! Try reading together for 15 minutes before bed to build confidence.'
-    );
-  }
-  if (count('science') > 2) {
-    tips.push(
-      "Science curiosity is blooming! Simple experiments at home can reinforce what they're learning."
-    );
-  }
-  if (count('geography') > 2) {
-    tips.push(
-      'Geography is opening up the world! Consider getting a world map for their room, or exploring Google Earth together.'
-    );
-  }
-  if (count('history') > 2) {
-    tips.push(
-      'History is coming alive! Watch age-appropriate documentaries together or visit a local museum.'
-    );
-  }
-  if (count('french') > 2) {
-    tips.push(
-      'French is progressing! Try labeling items around the house in French, or watch French cartoons together.'
-    );
-  }
-  if (count('spanish') > 2) {
-    tips.push(
-      '¡Muy bien! Spanish practice is going well. Try cooking a Spanish or Mexican recipe together and learning food vocabulary.'
-    );
-  }
-
-  return tips.length > 0
-    ? tips
-    : ['Great week! Your child is making steady progress. Keep up the encouragement!'];
-}
+// Spaced repetition: days until each next review after a miss enters the queue
+const REVIEW_INTERVALS = [1, 3, 7, 14];
 
 function createApp({ db, anthropic, config = {} }) {
   const {
@@ -259,13 +218,50 @@ function createApp({ db, anthropic, config = {} }) {
        WHERE c.family_id = ? AND st.created_at >= ?
        ORDER BY st.created_at DESC`
     ),
-    weeklyChildActivity: db.prepare(
-      `SELECT c.id AS id, c.name AS name, c.grade AS grade,
-              (SELECT COUNT(*) FROM messages m
-               JOIN sessions s ON s.id = m.session_id
-               WHERE s.child_id = c.id AND m.created_at >= ?) AS messageCount
-       FROM children c WHERE c.family_id = ? ORDER BY c.created_at, c.id`
+    reviewByProblem: db.prepare('SELECT * FROM review_queue WHERE problem_id = ?'),
+    insertReview: db.prepare(
+      'INSERT INTO review_queue (child_id, problem_id, due_at, interval_index, retired, created_at) VALUES (?, ?, ?, 0, 0, ?)'
     ),
+    resetReview: db.prepare(
+      'UPDATE review_queue SET due_at = ?, interval_index = 0, retired = 0 WHERE id = ?'
+    ),
+    advanceReview: db.prepare(
+      'UPDATE review_queue SET interval_index = ?, due_at = ? WHERE id = ?'
+    ),
+    retireReview: db.prepare('UPDATE review_queue SET retired = 1 WHERE id = ?'),
+    dueReviews: db.prepare(
+      `SELECT p.id, p.problem, p.hint, p.difficulty, p.subject, p.topic FROM review_queue rq
+       JOIN practice_problems p ON p.id = rq.problem_id
+       WHERE rq.child_id = ? AND rq.retired = 0 AND rq.due_at <= ?
+       ORDER BY rq.due_at LIMIT 5`
+    ),
+    dueReviewCount: db.prepare(
+      'SELECT COUNT(*) AS total FROM review_queue WHERE child_id = ? AND retired = 0 AND due_at <= ?'
+    ),
+    updateDigestEmail: db.prepare('UPDATE families SET digest_email = ? WHERE id = ?'),
+  };
+
+  // A miss puts the problem in the review queue; each later success stretches
+  // the interval (1d → 3d → 7d → 14d), and it retires after the last one.
+  const updateReviewQueue = (childId, problemId, correct) => {
+    const row = stmts.reviewByProblem.get(problemId);
+    if (correct) {
+      if (!row || row.retired) return;
+      const nextIndex = row.interval_index + 1;
+      if (nextIndex >= REVIEW_INTERVALS.length) {
+        stmts.retireReview.run(row.id);
+      } else {
+        stmts.advanceReview.run(
+          nextIndex,
+          new Date(Date.now() + REVIEW_INTERVALS[nextIndex] * DAY_MS).toISOString(),
+          row.id
+        );
+      }
+    } else {
+      const due = new Date(Date.now() + REVIEW_INTERVALS[0] * DAY_MS).toISOString();
+      if (row) stmts.resetReview.run(due, row.id);
+      else stmts.insertReview.run(childId, problemId, due, now());
+    }
   };
 
   const validKidInput = kid =>
@@ -702,7 +698,6 @@ function createApp({ db, anthropic, config = {} }) {
   // Interactive practice
   // ---------------------------------------------------------------------------
 
-
   app.post('/api/practice/generate', requireFamily, async (req, res) => {
     try {
       const { childId, subject, topic } = req.body || {};
@@ -818,6 +813,7 @@ function createApp({ db, anthropic, config = {} }) {
       const score = current ? current.score : 0.5;
       const nextScore = Math.min(1, Math.max(0, score + (grade.correct ? 0.08 : -0.1)));
       stmts.masteryUpsert.run(child.id, problem.subject, problem.topic, nextScore, now());
+      updateReviewQueue(child.id, problem.id, grade.correct);
 
       res.json({
         correct: grade.correct,
@@ -857,8 +853,30 @@ function createApp({ db, anthropic, config = {} }) {
       Math.max(0, score - 0.06),
       now()
     );
+    updateReviewQueue(child.id, problem.id, false);
 
     res.json({ answer: problem.answer, explanation: problem.explanation });
+  });
+
+  // Problems the child missed earlier that are due for another look
+  app.get('/api/practice/review', requireFamily, (req, res) => {
+    const child = childForFamily(req.query.childId, req.family.id);
+    if (!child) return res.status(400).json({ error: 'Pick who is practicing first!' });
+    const nowTs = now();
+    res.json({
+      due: stmts.dueReviews.all(child.id, nowTs),
+      total: stmts.dueReviewCount.get(child.id, nowTs).total,
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Progress: XP, streaks, badges, daily challenge
+  // ---------------------------------------------------------------------------
+
+  app.get('/api/progress', requireFamily, (req, res) => {
+    const child = childForFamily(req.query.childId, req.family.id);
+    if (!child) return res.status(400).json({ error: 'Pick who is learning first!' });
+    res.json(childProgress(db, child));
   });
 
   app.post('/api/practice/similar', requireFamily, async (req, res) => {
@@ -919,43 +937,23 @@ function createApp({ db, anthropic, config = {} }) {
   // ---------------------------------------------------------------------------
 
   app.get('/api/parent/summary', requireFamily, requireParent, (req, res) => {
-    const weekAgo = new Date(Date.now() - WEEK_MS).toISOString();
+    res.json(familySummary(db, req.family));
+  });
 
-    const subjectBreakdown = {
-      math: 0,
-      reading: 0,
-      science: 0,
-      geography: 0,
-      history: 0,
-      french: 0,
-      spanish: 0,
-    };
-    for (const row of stmts.weeklySubjectCounts.all(req.family.id, weekAgo)) {
-      subjectBreakdown[row.subject] = row.count;
+  app.get('/api/parent/digest', requireFamily, requireParent, (req, res) => {
+    res.json({ html: digestForFamily(db, req.family) });
+  });
+
+  app.post('/api/parent/settings', requireFamily, requireParent, (req, res) => {
+    const digestEmail = String(req.body?.digestEmail ?? '').trim();
+    if (digestEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(digestEmail)) {
+      return res.status(400).json({ error: "That email doesn't look right" });
     }
-
-    // Struggle *types* only - kids' raw words stay out of API responses
-    const struggles = {};
-    for (const row of stmts.weeklyStruggles.all(req.family.id, weekAgo)) {
-      if (!struggles[row.subject]) struggles[row.subject] = [];
-      struggles[row.subject].push({
-        type: row.type,
-        timestamp: row.timestamp,
-        subject: row.subject,
-      });
+    if (digestEmail.length > 120) {
+      return res.status(400).json({ error: 'That email is too long' });
     }
-
-    res.json({
-      weekStart: weekAgo,
-      weekEnd: now(),
-      familyName: req.family.name,
-      familyCode: req.family.code,
-      totalSessions: stmts.weeklySessions.get(req.family.id, weekAgo).total,
-      subjectBreakdown,
-      struggles,
-      children: stmts.weeklyChildActivity.all(weekAgo, req.family.id),
-      encouragement: generateParentTip(struggles),
-    });
+    stmts.updateDigestEmail.run(digestEmail, req.family.id);
+    res.json({ ok: true, digestEmail });
   });
 
   // ---------------------------------------------------------------------------
