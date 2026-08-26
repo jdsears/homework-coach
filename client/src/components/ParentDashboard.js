@@ -6,6 +6,7 @@ function ParentDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetchSummary();
@@ -14,10 +15,14 @@ function ParentDashboard() {
   const fetchSummary = async () => {
     try {
       const response = await fetch('/api/parent/summary');
+      if (!response.ok) {
+        throw new Error(`Summary request failed (${response.status})`);
+      }
       const summary = await response.json();
       setData(summary);
     } catch (error) {
       console.error('Error fetching summary:', error);
+      setLoadError(true);
     } finally {
       setIsLoading(false);
     }
@@ -27,6 +32,22 @@ function ParentDashboard() {
     return (
       <div className="parent-dashboard">
         <div className="loading-spinner"></div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="parent-dashboard">
+        <header className="parent-header">
+          <button className="parent-back-btn" onClick={() => navigate('/')}>
+            <ArrowLeft size={20} />
+          </button>
+          <h1>📊 Parent Dashboard</h1>
+        </header>
+        <div className="section-card">
+          <p>Couldn't load the dashboard right now. Please refresh to try again.</p>
+        </div>
       </div>
     );
   }

@@ -56,6 +56,8 @@ const subjects = [
 
 const grades = ['3', '4', '5', '6', '7', '8'];
 
+const ordinal = (grade) => (grade === '3' ? '3rd' : `${grade}th`);
+
 function SubjectSelect() {
   const [selectedGrade, setSelectedGrade] = useState('5');
 
@@ -76,7 +78,7 @@ function SubjectSelect() {
               className={`grade-btn ${selectedGrade === grade ? 'active' : ''}`}
               onClick={() => setSelectedGrade(grade)}
             >
-              {grade}th
+              {ordinal(grade)}
             </button>
           ))}
         </div>

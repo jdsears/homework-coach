@@ -1,9 +1,17 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const Anthropic = require('@anthropic-ai/sdk');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.error(
+    'Missing ANTHROPIC_API_KEY. Copy .env.example to .env and add your key from https://console.anthropic.com'
+  );
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -13,18 +21,41 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Behind Railway's proxy, trust the first hop so rate limiting sees real client IPs
+app.set('trust proxy', 1);
+
 // Middleware
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000'];
+app.use(cors({ origin: allowedOrigins }));
+app.use(express.json({ limit: '100kb' }));
+
+// Rate limits: generous for a family, a wall for abuse
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Whoa, that's a lot of requests! Take a short break and try again soon. 🌟" },
+});
+const claudeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "You're super fast! Give me a few seconds to catch up, then try again. 🌟" },
+});
+app.use('/api/', apiLimiter);
+app.use(['/api/chat', '/api/practice'], claudeLimiter);
 
 // Serve static files from React build in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
 }
 
-// In-memory storage (use a database in production)
+// In-memory storage (replaced by a real database in Phase 1)
 const sessions = new Map();
-const parentData = new Map();
 
 // Cheat detection patterns
 const CHEAT_PATTERNS = [
@@ -236,19 +267,12 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { sessionId, message, subject, grade } = req.body;
 
-    if (!message || !subject) {
+    if (!message || typeof message !== 'string' || !subject) {
       return res.status(400).json({ error: 'Message and subject are required' });
     }
-
-    // Check for cheat attempt
-    if (detectCheatAttempt(message)) {
-      // Log this for parent dashboard
-      logStruggle(sessionId, subject, 'Tried to get direct answer', message);
-      
-      return res.json({
-        response: CHEAT_REDIRECT,
-        sessionId: sessionId || uuidv4(),
-        cheatDetected: true,
+    if (message.length > 2000) {
+      return res.status(400).json({
+        error: "That's a really long message! Try breaking it into smaller questions. 😊",
       });
     }
 
@@ -272,6 +296,19 @@ app.post('/api/chat', async (req, res) => {
       content: message,
     });
 
+    // Check for cheat attempt
+    if (detectCheatAttempt(message)) {
+      logStruggle(session.id, subject, 'Tried to get direct answer', message);
+      // Keep the exchange in history so the coach has context on later turns
+      session.messages.push({ role: 'assistant', content: CHEAT_REDIRECT });
+
+      return res.json({
+        response: CHEAT_REDIRECT,
+        sessionId: session.id,
+        cheatDetected: true,
+      });
+    }
+
     // Prepare messages for Claude
     const systemPrompt = SYSTEM_PROMPTS[subject] || SYSTEM_PROMPTS.math;
     const gradeContext = grade ? `\n\nThe student is in grade ${grade}.` : '';
@@ -292,12 +329,16 @@ app.post('/api/chat', async (req, res) => {
       content: assistantMessage,
     });
 
-    // Analyze for struggles (simple heuristic)
-    if (message.toLowerCase().includes("don't understand") ||
-        message.toLowerCase().includes("confused") ||
-        message.toLowerCase().includes("help") ||
-        message.toLowerCase().includes("stuck")) {
-      logStruggle(sessionId || session.id, subject, 'Expressed confusion', message);
+    // Analyze for struggles (simple heuristic; a real classifier lands in Phase 2).
+    // Deliberately no bare "help" here - "I need help with fractions" is how a
+    // healthy session starts, not a struggle signal.
+    const lowered = message.toLowerCase();
+    if (lowered.includes("don't understand") ||
+        lowered.includes("don't get it") ||
+        lowered.includes('confused') ||
+        lowered.includes('stuck') ||
+        lowered.includes('give up')) {
+      logStruggle(session.id, subject, 'Expressed confusion', message);
     }
 
     res.json({
@@ -316,14 +357,23 @@ app.post('/api/practice', async (req, res) => {
   try {
     const { subject, grade, topic } = req.body;
 
+    if (topic && (typeof topic !== 'string' || topic.length > 100)) {
+      return res.status(400).json({ error: 'That topic is a bit too long - try a shorter one!' });
+    }
+
     const prompt = `Generate 3 practice problems for a grade ${grade || '5'} student studying ${topic || subject}.
 
-Format each problem clearly with:
-1. The problem
-2. A hint (hidden - marked with [HINT])
-3. The learning goal
+Format each problem EXACTLY like this, separated by blank lines:
 
-Make them progressively harder. Keep language simple and age-appropriate.`;
+Problem 1: <the problem>
+[HINT] <a helpful hint>
+Learning goal: <what this practices>
+
+Rules:
+- The hint line must start with [HINT] and nothing else - the app hides it until the student asks.
+- Make the three problems progressively harder.
+- Keep language simple and age-appropriate.
+- Do not include the answers.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',

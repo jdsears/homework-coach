@@ -1,5 +1,41 @@
 import React, { useState } from 'react';
 import { Sparkles, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+
+// Split the generated text into text segments and hidden hints.
+// Hint lines arrive from the server marked with a leading [HINT].
+function parseProblemText(text) {
+  const segments = [];
+  let current = [];
+  for (const line of text.split('\n')) {
+    if (line.trim().startsWith('[HINT]')) {
+      if (current.length) {
+        segments.push({ type: 'text', content: current.join('\n') });
+        current = [];
+      }
+      segments.push({ type: 'hint', content: line.trim().replace(/^\[HINT\]\s*/, '') });
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length) {
+    segments.push({ type: 'text', content: current.join('\n') });
+  }
+  return segments;
+}
+
+function Hint({ text }) {
+  const [revealed, setRevealed] = useState(false);
+
+  if (!revealed) {
+    return (
+      <button className="hint-btn" onClick={() => setRevealed(true)}>
+        💡 Show hint
+      </button>
+    );
+  }
+  return <div className="hint-box">💡 {text}</div>;
+}
 
 function PracticeMode() {
   const [subject, setSubject] = useState('math');
@@ -16,6 +52,10 @@ function PracticeMode() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, grade, topic: topic || subject }),
       });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Could not generate problems');
+      }
       const data = await response.json();
       setProblems(data.problems);
     } catch (error) {
@@ -67,13 +107,14 @@ function PracticeMode() {
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
+              maxLength={100}
               placeholder="e.g., fractions, vocabulary, ecosystems..."
             />
           </div>
         </div>
 
-        <button 
-          className="generate-btn" 
+        <button
+          className="generate-btn"
           onClick={generateProblems}
           disabled={isLoading}
         >
@@ -92,7 +133,13 @@ function PracticeMode() {
       {problems && (
         <div className="problems-container">
           <h3>📝 Your Practice Problems</h3>
-          {problems}
+          {parseProblemText(problems).map((segment, idx) =>
+            segment.type === 'hint' ? (
+              <Hint key={idx} text={segment.content} />
+            ) : (
+              <ReactMarkdown key={idx}>{segment.content}</ReactMarkdown>
+            )
+          )}
         </div>
       )}
     </div>
