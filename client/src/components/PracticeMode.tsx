@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Sparkles, RefreshCw, Lightbulb, Check, ArrowRight, Eye, Repeat } from 'lucide-react';
 import CoachMarkdown from './CoachMarkdown';
 import { apiJson, isApiError } from '../api';
@@ -193,8 +194,11 @@ function PracticeMode() {
   const subjectIds = family?.curriculum === 'uk' ? UK_SUBJECT_IDS : SUBJECT_IDS;
   const examEligible =
     family?.curriculum === 'uk' && activeChild != null && Number(activeChild.grade) >= 10;
-  const [subject, setSubject] = useState('math');
-  const [topic, setTopic] = useState('');
+  // Arriving from the home screen's daily challenge preselects its subject
+  const [searchParams] = useSearchParams();
+  const askedSubject = searchParams.get('subject') ?? '';
+  const [subject, setSubject] = useState(subjectIds.includes(askedSubject) ? askedSubject : 'math');
+  const [topic, setTopic] = useState(searchParams.get('topic') ?? '');
   const [examStyle, setExamStyle] = useState(false);
   const [problems, setProblems] = useState<PracticeProblem[]>([]);
   const [current, setCurrent] = useState(0);
