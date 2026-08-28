@@ -107,14 +107,36 @@ function ChatRoom() {
   const [listening, setListening] = useState(false);
   const [resumable, setResumable] = useState<RecentSession | null>(null);
 
+  const messagesRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLDivElement>(null);
+  // Whether the reader is parked at the bottom and wants to be carried along
+  const followRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
+  // Follow a streaming reply only while the reader is already at the bottom,
+  // so scrolling back to re-read something isn't yanked away mid-sentence.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!followRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
+
+  // A new question moves to the top of the view, so its answer is read from
+  // the beginning instead of appearing already scrolled past.
+  const questionCount = messages.filter(message => message.role === 'user').length;
+  useEffect(() => {
+    const container = messagesRef.current;
+    const question = questionRef.current;
+    if (!container || !question || !questionCount) return;
+    followRef.current = false;
+    const offset =
+      question.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop;
+    container.scrollTo({ top: Math.max(0, offset - 8), behavior: 'smooth' });
+  }, [questionCount]);
 
   // Grow the input with its content, up to a few lines
   useEffect(() => {
@@ -287,8 +309,15 @@ function ChatRoom() {
     }
   };
 
+  const handleScroll = () => {
+    const container = messagesRef.current;
+    if (!container) return;
+    followRef.current = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+  };
+
   const speakLabel = targetLang ? t('chat.speakLang', { lang: config.name }) : t('chat.speakTitle');
   const visibleMessages = messages.filter(msg => !(msg.streaming && !msg.content));
+  const lastQuestionIndex = visibleMessages.map(msg => msg.role).lastIndexOf('user');
   const waitingForFirstToken =
     isLoading &&
     messages[messages.length - 1]?.streaming &&
@@ -314,7 +343,7 @@ function ChatRoom() {
         </div>
       </header>
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesRef} onScroll={handleScroll}>
         {visibleMessages.length === 0 && !waitingForFirstToken ? (
           <div className="welcome-message">
             <div className={`welcome-avatar ${config.isPersona ? 'custom' : config.key}`}>
@@ -337,7 +366,11 @@ function ChatRoom() {
           </div>
         ) : (
           visibleMessages.map((msg, idx) => (
-            <div key={idx} className={`message ${msg.role}`}>
+            <div
+              key={idx}
+              className={`message ${msg.role}`}
+              ref={idx === lastQuestionIndex ? questionRef : undefined}
+            >
               {msg.imageUrl && <img className="chat-photo" src={msg.imageUrl} alt="Homework" />}
               {msg.hadImage && !msg.imageUrl && (
                 <div className="photo-note">📷 {t('chat.sentPhoto')}</div>
@@ -373,7 +406,7 @@ function ChatRoom() {
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+        <div className="messages-tail" ref={messagesEndRef} />
       </div>
 
       <form className="chat-input-container" onSubmit={handleSubmit}>
