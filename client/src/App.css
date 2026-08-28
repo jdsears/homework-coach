@@ -19,6 +19,8 @@
   --color-history: #ef4444;
   --color-french: #0ea5e9;
   --color-spanish: #f97316;
+  --color-englishlang: #8b5cf6;
+  --color-englishlit: #c026d3;
   --color-furthermaths: #0d9488;
 
   /* Backgrounds */
@@ -234,6 +236,12 @@ h2 {
 .subject-card.spanish::before {
   background: var(--color-spanish);
 }
+.subject-card.englishlang::before {
+  background: var(--color-englishlang);
+}
+.subject-card.englishlit::before {
+  background: var(--color-englishlit);
+}
 .subject-card.furthermaths::before {
   background: var(--color-furthermaths);
 }
@@ -277,6 +285,12 @@ h2 {
 }
 .subject-card.spanish .subject-icon {
   background: linear-gradient(135deg, #f97316, #ea580c);
+}
+.subject-card.englishlang .subject-icon {
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+}
+.subject-card.englishlit .subject-icon {
+  background: linear-gradient(135deg, #d946ef, #a21caf);
 }
 .subject-card.furthermaths .subject-icon {
   background: linear-gradient(135deg, #14b8a6, #0f766e);
@@ -574,6 +588,12 @@ h2 {
 }
 .welcome-avatar.spanish {
   background: linear-gradient(135deg, #ffedd5, #fed7aa);
+}
+.welcome-avatar.englishlang {
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+}
+.welcome-avatar.englishlit {
+  background: linear-gradient(135deg, #fae8ff, #f5d0fe);
 }
 .welcome-avatar.furthermaths {
   background: linear-gradient(135deg, #ccfbf1, #99f6e4);

@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, Flame, Star, Target, X } from 'lucide-react';
 import { apiJson } from '../api';
 import { useFamily } from '../FamilyContext';
-import { useI18n } from '../i18n';
+import { useI18n, useSubjectName } from '../i18n';
+import { resolveSubjectId } from '../subjects';
 import type { Badge, Progress } from '../types';
 
 // Streak, level, daily challenge, and trophies for the home screen.
 function ProgressStrip() {
-  const { activeChild } = useFamily();
+  const { family, activeChild } = useFamily();
   const { t } = useI18n();
+  const subjectName = useSubjectName();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [newBadges, setNewBadges] = useState<Badge[]>([]);
 
@@ -46,12 +48,19 @@ function ProgressStrip() {
   const earnedBadges = progress.badges.filter(badge => badge.earned);
 
   // Rebuild the challenge title locally so it follows the interface language
+  // The challenge is generated without knowing the kid's year, so map it onto a
+  // subject they're actually offered ("reading" is English Language at GCSE).
+  const challengeSubject = resolveSubjectId(
+    progress.challenge.subject,
+    family?.curriculum,
+    Number(activeChild.grade)
+  );
   const challengeTitle = progress.challenge.topic
     ? t('progress.challengeTopic', { topic: progress.challenge.topic })
-    : t('progress.challengeSubject', { subject: t(`subject.${progress.challenge.subject}.name`) });
+    : t('progress.challengeSubject', { subject: subjectName(challengeSubject) });
 
   // Tapping the challenge opens practice already set to its subject and topic
-  const challengeParams = new URLSearchParams({ subject: progress.challenge.subject });
+  const challengeParams = new URLSearchParams({ subject: challengeSubject });
   if (progress.challenge.topic) challengeParams.set('topic', progress.challenge.topic);
 
   return (

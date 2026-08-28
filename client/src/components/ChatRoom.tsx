@@ -20,6 +20,8 @@ interface SubjectConfig {
 const BUILTIN_COACHES: Record<string, { coach: string; emoji: string }> = {
   math: { coach: 'Coach Mathilda', emoji: '🧮' },
   reading: { coach: 'Coach Riley', emoji: '📖' },
+  englishlang: { coach: 'Coach Riley', emoji: '📖' },
+  englishlit: { coach: 'Coach Brontë', emoji: '🎭' },
   science: { coach: 'Coach Newton', emoji: '🔬' },
   geography: { coach: 'Coach Atlas', emoji: '🌍' },
   history: { coach: 'Coach Clio', emoji: '🏛️' },

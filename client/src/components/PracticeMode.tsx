@@ -6,9 +6,7 @@ import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
 import { useI18n, useGradeLabel, useSubjectName } from '../i18n';
 import { EXAM_BOARD_LABELS, PAST_PAPER_URLS, type PracticeProblem } from '../types';
-
-const SUBJECT_IDS = ['math', 'reading', 'science', 'geography', 'history', 'french', 'spanish'];
-const UK_SUBJECT_IDS = [...SUBJECT_IDS, 'furthermaths'];
+import { resolveSubjectId, visibleSubjectIds } from '../subjects';
 
 interface GradeResponse {
   correct: boolean;
@@ -191,13 +189,15 @@ function PracticeMode() {
   const { t } = useI18n();
   const gradeLabel = useGradeLabel();
   const subjectName = useSubjectName();
-  const subjectIds = family?.curriculum === 'uk' ? UK_SUBJECT_IDS : SUBJECT_IDS;
-  const examEligible =
-    family?.curriculum === 'uk' && activeChild != null && Number(activeChild.grade) >= 10;
+  const year = Number(activeChild?.grade ?? 0);
+  const subjectIds = visibleSubjectIds(family?.curriculum, year);
+  const examEligible = family?.curriculum === 'uk' && activeChild != null && year >= 10;
   // Arriving from the home screen's daily challenge preselects its subject
   const [searchParams] = useSearchParams();
   const askedSubject = searchParams.get('subject') ?? '';
-  const [subject, setSubject] = useState(subjectIds.includes(askedSubject) ? askedSubject : 'math');
+  const [subject, setSubject] = useState(
+    askedSubject ? resolveSubjectId(askedSubject, family?.curriculum, year) : 'math'
+  );
   const [topic, setTopic] = useState(searchParams.get('topic') ?? '');
   const [examStyle, setExamStyle] = useState(false);
   const [problems, setProblems] = useState<PracticeProblem[]>([]);

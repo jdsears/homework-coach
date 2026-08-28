@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
-import { LANGUAGE_NAMES, useI18n, useGradeLabel } from '../i18n';
+import { LANGUAGE_NAMES, useI18n, useGradeLabel, useSubjectName } from '../i18n';
 import { getReadingFont, storeReadingFont, type Lang } from '../prefs';
 import ActivityChart from './ActivityChart';
 import {
@@ -34,6 +34,7 @@ function ParentDashboard() {
   const { family, refresh, signOut, personas } = useFamily();
   const { t, lang, setLang } = useI18n();
   const gradeLabel = useGradeLabel();
+  const subjectName = useSubjectName();
   const grades = GRADE_SETS[family?.curriculum ?? 'uk'];
 
   const [data, setData] = useState<ParentSummary | null>(null);
@@ -507,7 +508,7 @@ function ParentDashboard() {
                   <h3
                     style={{ textTransform: 'capitalize', fontSize: '1rem', marginBottom: '8px' }}
                   >
-                    {subject.startsWith('p:') ? t('parent.coaches') : subject}
+                    {subject.startsWith('p:') ? t('parent.coaches') : subjectName(subject)}
                   </h3>
                   {items.slice(0, 3).map((item, idx) => (
                     <div key={idx} className="struggle-item">

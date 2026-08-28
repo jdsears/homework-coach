@@ -261,6 +261,8 @@ export function familySummary(db: Database.Database, family: FamilyRow): FamilyS
     history: 0,
     french: 0,
     spanish: 0,
+    englishlang: 0,
+    englishlit: 0,
     furthermaths: 0,
     custom: 0,
   };
