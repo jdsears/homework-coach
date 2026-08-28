@@ -98,8 +98,8 @@ const en: Dict = {
   'subject.furthermaths.s1': 'Help me differentiate a function',
   'subject.furthermaths.s2': 'Can we practise matrix transformations?',
   'subject.furthermaths.s3': "I'm stuck on a circle theorem proof",
-  'subject.furthermaths.badge': 'GCSE',
-  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
+  'badge.gcse': 'GCSE',
+  'badge.alevel': 'A-LEVEL',
 
   'chat.back': 'Back to subjects',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -333,8 +333,8 @@ const fr: Dict = {
   'subject.furthermaths.s1': 'Aide-moi à dériver une fonction',
   'subject.furthermaths.s2': 'On révise les transformations par matrices ?',
   'subject.furthermaths.s3': 'Je bloque sur une démonstration de cercle',
-  'subject.furthermaths.badge': 'GCSE',
-  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
+  'badge.gcse': 'GCSE',
+  'badge.alevel': 'A-LEVEL',
 
   'chat.back': 'Retour aux matières',
   'chat.headerLine': '{name} · {grade} · {subject}',
@@ -568,8 +568,8 @@ const es: Dict = {
   'subject.furthermaths.s1': 'Ayúdame a derivar una función',
   'subject.furthermaths.s2': '¿Practicamos transformaciones con matrices?',
   'subject.furthermaths.s3': 'Estoy atascado en una demostración de círculo',
-  'subject.furthermaths.badge': 'GCSE',
-  'subject.furthermaths.badgeAlevel': 'A-LEVEL',
+  'badge.gcse': 'GCSE',
+  'badge.alevel': 'A-LEVEL',
 
   'chat.back': 'Volver a las materias',
   'chat.headerLine': '{name} · {grade} · {subject}',

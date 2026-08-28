@@ -20,7 +20,6 @@ interface SubjectMeta {
   emoji: string;
   icon: LucideIcon;
   ukOnly?: boolean;
-  badgeKey?: string;
 }
 
 const SUBJECTS: SubjectMeta[] = [
@@ -31,14 +30,7 @@ const SUBJECTS: SubjectMeta[] = [
   { id: 'history', coach: 'Coach Clio', emoji: '🏛️', icon: Landmark },
   { id: 'french', coach: 'Coach Amélie', emoji: '🇫🇷', icon: Languages },
   { id: 'spanish', coach: 'Coach Diego', emoji: '🇪🇸', icon: Languages },
-  {
-    id: 'furthermaths',
-    coach: 'Coach Ada',
-    emoji: '📐',
-    icon: Sigma,
-    ukOnly: true,
-    badgeKey: 'subject.furthermaths.badge',
-  },
+  { id: 'furthermaths', coach: 'Coach Ada', emoji: '📐', icon: Sigma, ukOnly: true },
 ];
 
 function SubjectSelect() {
@@ -49,15 +41,22 @@ function SubjectSelect() {
 
   if (!activeChild) return null;
 
-  const visibleSubjects = SUBJECTS.filter(
-    subject => !subject.ukOnly || family?.curriculum === 'uk'
-  );
-  // Sixth-formers see the A-level badge on Further Maths instead of GCSE
-  const sixthForm = family?.curriculum === 'uk' && Number(activeChild.grade) >= 12;
-  const badgeText = (subject: SubjectMeta): string =>
-    subject.id === 'furthermaths' && sixthForm
-      ? t('subject.furthermaths.badgeAlevel')
-      : t(subject.badgeKey as string);
+  const isUk = family?.curriculum === 'uk';
+  const year = Number(activeChild.grade);
+
+  // Every subject is a GCSE subject in Years 10-11 and an A-level subject in
+  // Years 12-13, so the stage badge applies to all cards, not just Further
+  // Maths. Further Maths itself only appears from Year 9 (keen early starters).
+  const stageBadge = isUk
+    ? year >= 12
+      ? t('badge.alevel')
+      : year >= 10
+        ? t('badge.gcse')
+        : null
+    : null;
+  const visibleSubjects = SUBJECTS.filter(subject => !subject.ukOnly || (isUk && year >= 9));
+  const badgeFor = (subject: SubjectMeta): string | null =>
+    subject.id === 'furthermaths' ? (stageBadge ?? t('badge.gcse')) : stageBadge;
 
   return (
     <div className="subject-select">
@@ -73,27 +72,30 @@ function SubjectSelect() {
       <ProgressStrip />
 
       <div className="subject-grid">
-        {visibleSubjects.map(subject => (
-          <Link
-            key={subject.id}
-            to={`/chat/${subject.id}`}
-            className={`subject-card ${subject.id}`}
-          >
-            <div className="subject-icon">
-              <subject.icon size={32} />
-            </div>
-            <div className="subject-info">
-              <h2>
-                {subjectName(subject.id)}
-                {subject.badgeKey && <span className="gcse-badge">{badgeText(subject)}</span>}
-              </h2>
-              <p>{t(`subject.${subject.id}.description`)}</p>
-              <div className="coach-name">
-                {subject.coach} {subject.emoji}
+        {visibleSubjects.map(subject => {
+          const badge = badgeFor(subject);
+          return (
+            <Link
+              key={subject.id}
+              to={`/chat/${subject.id}`}
+              className={`subject-card ${subject.id}`}
+            >
+              <div className="subject-icon">
+                <subject.icon size={32} />
               </div>
-            </div>
-          </Link>
-        ))}
+              <div className="subject-info">
+                <h2>
+                  {subjectName(subject.id)}
+                  {badge && <span className="level-badge">{badge}</span>}
+                </h2>
+                <p>{t(`subject.${subject.id}.description`)}</p>
+                <div className="coach-name">
+                  {subject.coach} {subject.emoji}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       {personas.length > 0 && (

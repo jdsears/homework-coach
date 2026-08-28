@@ -2035,7 +2035,7 @@ body.reading-font textarea {
   color: var(--text-secondary);
 }
 
-.gcse-badge {
+.level-badge {
   display: inline-block;
   vertical-align: middle;
   margin-left: var(--space-sm);
