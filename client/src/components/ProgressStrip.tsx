@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Flame, Star, Target, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ChevronRight, Flame, Star, Target, X } from 'lucide-react';
 import { apiJson } from '../api';
 import { useFamily } from '../FamilyContext';
 import { useI18n } from '../i18n';
@@ -49,6 +50,10 @@ function ProgressStrip() {
     ? t('progress.challengeTopic', { topic: progress.challenge.topic })
     : t('progress.challengeSubject', { subject: t(`subject.${progress.challenge.subject}.name`) });
 
+  // Tapping the challenge opens practice already set to its subject and topic
+  const challengeParams = new URLSearchParams({ subject: progress.challenge.subject });
+  if (progress.challenge.topic) challengeParams.set('topic', progress.challenge.topic);
+
   return (
     <div className="progress-strip">
       {newBadges.length > 0 && (
@@ -82,7 +87,10 @@ function ProgressStrip() {
         </div>
       </div>
 
-      <div className={`challenge-chip ${progress.challenge.done ? 'done' : ''}`}>
+      <Link
+        to={`/practice?${challengeParams}`}
+        className={`challenge-chip ${progress.challenge.done ? 'done' : ''}`}
+      >
         <Target size={16} />
         <span>
           {progress.challenge.done
@@ -93,7 +101,8 @@ function ProgressStrip() {
                 g: progress.challenge.goal,
               })}
         </span>
-      </div>
+        <ChevronRight size={16} className="challenge-go" aria-hidden="true" />
+      </Link>
 
       {earnedBadges.length > 0 && (
         <div className="trophy-row" aria-label={t('progress.trophies')}>

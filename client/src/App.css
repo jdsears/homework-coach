@@ -1665,6 +1665,28 @@ h2 {
   padding: var(--space-sm) var(--space-md);
   font-size: 0.9rem;
   font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.challenge-chip:hover {
+  background: #e0e7ff;
+}
+
+.challenge-chip:active {
+  transform: scale(0.99);
+}
+
+.challenge-chip.done:hover {
+  background: linear-gradient(135deg, #bbf7d0, #86efac);
+}
+
+/* Pushed to the trailing edge as the "go here" affordance */
+.challenge-go {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .challenge-chip.done {
