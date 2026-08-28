@@ -1059,3 +1059,38 @@ describe('exam boards & exam-style practice', () => {
     expect(usGen.messages[0].content).not.toContain('mark allocation');
   });
 });
+describe('language coaching', () => {
+  it('demands gender and number agreement in language practice only', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, { curriculum: 'uk' });
+
+    await agent
+      .post('/api/practice/generate')
+      .send({ childId: children[0].id, subject: 'spanish', topic: 'school subjects' });
+    const spanishGen = ctx.anthropic.calls.parse.at(-1);
+    expect(spanishGen.messages[0].content).toContain('LANGUAGE ACCURACY');
+    expect(spanishGen.messages[0].content).toContain('MUST agree with the expected answer');
+
+    await agent
+      .post('/api/practice/generate')
+      .send({ childId: children[0].id, subject: 'math', topic: 'fractions' });
+    expect(ctx.anthropic.calls.parse.at(-1).messages[0].content).not.toContain('LANGUAGE ACCURACY');
+  });
+
+  it('coaches pronunciation and marks target-language text for the speech voice', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, { curriculum: 'uk' });
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'spanish', message: 'How do I say maths?' });
+
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('PRONUNCIATION & AUDIO');
+    expect(system).toContain('italics');
+    // The coach sees a transcript, never audio - it must not claim to hear them
+    expect(system).toContain('never the audio itself');
+  });
+});
