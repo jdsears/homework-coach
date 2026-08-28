@@ -1094,3 +1094,48 @@ describe('language coaching', () => {
     expect(system).toContain('never the audio itself');
   });
 });
+describe('English at GCSE', () => {
+  it('coaches English Language and English Literature separately', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '11' }],
+    });
+
+    await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'englishlang',
+      message: 'How do I analyse structure?',
+    });
+    const langSystem = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(langSystem).toContain('Coach Riley');
+    expect(langSystem).toContain('GCSE English Language');
+    expect(langSystem).toContain('transactional');
+
+    await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'englishlit',
+      message: 'Help me plan a Macbeth essay',
+    });
+    const litSystem = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(litSystem).toContain('Coach Brontë');
+    expect(litSystem).toContain('GCSE English Literature');
+    expect(litSystem).toContain('closed book');
+    // Both must keep the never-write-it-for-them rule
+    expect(litSystem).toContain('NEVER write the essay');
+  });
+
+  it('uses the English guides even for a US-configured family', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent);
+
+    await agent
+      .post('/api/chat')
+      .send({ childId: children[0].id, subject: 'englishlit', message: 'hello' });
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('English Literature in English schools');
+    expect(system).toContain('British English');
+  });
+});

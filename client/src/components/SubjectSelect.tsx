@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   Calculator,
   BookOpen,
+  Feather,
   FlaskConical,
   Globe,
   Landmark,
@@ -12,26 +13,21 @@ import {
 } from 'lucide-react';
 import { useFamily } from '../FamilyContext';
 import { useI18n, useGradeLabel, useSubjectName } from '../i18n';
+import { visibleSubjectIds } from '../subjects';
 import ProgressStrip from './ProgressStrip';
 
-interface SubjectMeta {
-  id: string;
-  coach: string;
-  emoji: string;
-  icon: LucideIcon;
-  ukOnly?: boolean;
-}
-
-const SUBJECTS: SubjectMeta[] = [
-  { id: 'math', coach: 'Coach Mathilda', emoji: '🧮', icon: Calculator },
-  { id: 'reading', coach: 'Coach Riley', emoji: '📖', icon: BookOpen },
-  { id: 'science', coach: 'Coach Newton', emoji: '🔬', icon: FlaskConical },
-  { id: 'geography', coach: 'Coach Atlas', emoji: '🌍', icon: Globe },
-  { id: 'history', coach: 'Coach Clio', emoji: '🏛️', icon: Landmark },
-  { id: 'french', coach: 'Coach Amélie', emoji: '🇫🇷', icon: Languages },
-  { id: 'spanish', coach: 'Coach Diego', emoji: '🇪🇸', icon: Languages },
-  { id: 'furthermaths', coach: 'Coach Ada', emoji: '📐', icon: Sigma, ukOnly: true },
-];
+const SUBJECT_META: Record<string, { coach: string; emoji: string; icon: LucideIcon }> = {
+  math: { coach: 'Coach Mathilda', emoji: '🧮', icon: Calculator },
+  reading: { coach: 'Coach Riley', emoji: '📖', icon: BookOpen },
+  englishlang: { coach: 'Coach Riley', emoji: '📖', icon: BookOpen },
+  englishlit: { coach: 'Coach Brontë', emoji: '🎭', icon: Feather },
+  science: { coach: 'Coach Newton', emoji: '🔬', icon: FlaskConical },
+  geography: { coach: 'Coach Atlas', emoji: '🌍', icon: Globe },
+  history: { coach: 'Coach Clio', emoji: '🏛️', icon: Landmark },
+  french: { coach: 'Coach Amélie', emoji: '🇫🇷', icon: Languages },
+  spanish: { coach: 'Coach Diego', emoji: '🇪🇸', icon: Languages },
+  furthermaths: { coach: 'Coach Ada', emoji: '📐', icon: Sigma },
+};
 
 function SubjectSelect() {
   const { family, activeChild, selectChild, personas } = useFamily();
@@ -43,10 +39,11 @@ function SubjectSelect() {
 
   const isUk = family?.curriculum === 'uk';
   const year = Number(activeChild.grade);
+  const subjectIds = visibleSubjectIds(family?.curriculum, year);
 
   // Every subject is a GCSE subject in Years 10-11 and an A-level subject in
-  // Years 12-13, so the stage badge applies to all cards, not just Further
-  // Maths. Further Maths itself only appears from Year 9 (keen early starters).
+  // Years 12-13, so the stage badge applies to all cards. Further Maths keeps
+  // a GCSE badge for the Year 9s who start it early.
   const stageBadge = isUk
     ? year >= 12
       ? t('badge.alevel')
@@ -54,9 +51,8 @@ function SubjectSelect() {
         ? t('badge.gcse')
         : null
     : null;
-  const visibleSubjects = SUBJECTS.filter(subject => !subject.ukOnly || (isUk && year >= 9));
-  const badgeFor = (subject: SubjectMeta): string | null =>
-    subject.id === 'furthermaths' ? (stageBadge ?? t('badge.gcse')) : stageBadge;
+  const badgeFor = (id: string): string | null =>
+    id === 'furthermaths' ? (stageBadge ?? t('badge.gcse')) : stageBadge;
 
   return (
     <div className="subject-select">
@@ -72,25 +68,23 @@ function SubjectSelect() {
       <ProgressStrip />
 
       <div className="subject-grid">
-        {visibleSubjects.map(subject => {
-          const badge = badgeFor(subject);
+        {subjectIds.map(id => {
+          const meta = SUBJECT_META[id];
+          const badge = badgeFor(id);
+          const Icon = meta.icon;
           return (
-            <Link
-              key={subject.id}
-              to={`/chat/${subject.id}`}
-              className={`subject-card ${subject.id}`}
-            >
+            <Link key={id} to={`/chat/${id}`} className={`subject-card ${id}`}>
               <div className="subject-icon">
-                <subject.icon size={32} />
+                <Icon size={32} />
               </div>
               <div className="subject-info">
                 <h2>
-                  {subjectName(subject.id)}
+                  {subjectName(id)}
                   {badge && <span className="level-badge">{badge}</span>}
                 </h2>
-                <p>{t(`subject.${subject.id}.description`)}</p>
+                <p>{t(`subject.${id}.description`)}</p>
                 <div className="coach-name">
-                  {subject.coach} {subject.emoji}
+                  {meta.coach} {meta.emoji}
                 </div>
               </div>
             </Link>

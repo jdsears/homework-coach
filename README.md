@@ -10,7 +10,8 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 ### For Kids
 
 - **🧮 Math Coach** - Fractions, algebra, word problems with guided discovery
-- **📖 Reading & Writing Coach** - Essay help, comprehension, vocabulary building
+- **📖 English Coach** - Essay help, comprehension, vocabulary building (US grades and UK Years 3-9)
+- **🎭 English Language & English Literature (UK)** - From Year 10 English splits into its two real GCSEs: Coach Riley on unseen texts, analysis and writing; Coach Brontë on set texts, poetry and essay craft - both continuing to A-level
 - **🔬 Science Coach** - Explore how the world works through inquiry
 - **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
 - **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365) for Years 9-11 and A-level Further Mathematics for sixth-formers: surds, the factor theorem, calculus, complex numbers, matrix transformations, circle theorems and more

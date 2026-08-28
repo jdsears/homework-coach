@@ -93,6 +93,17 @@ const en: Dict = {
   'subject.spanish.s2': 'Help me with Spanish vocabulary',
   'subject.spanish.s3': 'Can we practise my pronunciation?',
 
+  'subject.englishlang.name': 'English Language',
+  'subject.englishlang.description': 'Analysis, creative & transactional writing',
+  'subject.englishlang.s1': 'Help me analyse this unseen extract',
+  'subject.englishlang.s2': 'How do I plan a descriptive writing answer?',
+  'subject.englishlang.s3': 'How do I write about structure?',
+  'subject.englishlit.name': 'English Literature',
+  'subject.englishlit.description': 'Set texts, poetry & essay technique',
+  'subject.englishlit.s1': 'Help me plan an essay on my set text',
+  'subject.englishlit.s2': 'How do I analyse an unseen poem?',
+  'subject.englishlit.s3': 'How can I remember quotations?',
+
   'subject.furthermaths.name': 'Further Maths',
   'subject.furthermaths.description': 'GCSE & A-level stretch: calculus, matrices & more',
   'subject.furthermaths.s1': 'Help me differentiate a function',
@@ -335,6 +346,17 @@ const fr: Dict = {
   'subject.spanish.s1': 'Comment dire bonjour en espagnol ?',
   'subject.spanish.s2': 'Aide-moi avec le vocabulaire espagnol',
   'subject.spanish.s3': 'On travaille ma prononciation ?',
+
+  'subject.englishlang.name': 'English Language',
+  'subject.englishlang.description': 'Analyse de textes et écriture',
+  'subject.englishlang.s1': 'Aide-moi à analyser cet extrait',
+  'subject.englishlang.s2': 'Comment structurer un texte descriptif ?',
+  'subject.englishlang.s3': 'Comment parler de la structure ?',
+  'subject.englishlit.name': 'English Literature',
+  'subject.englishlit.description': 'Œuvres au programme, poésie et dissertation',
+  'subject.englishlit.s1': 'Aide-moi à préparer une dissertation',
+  'subject.englishlit.s2': 'Comment analyser un poème inconnu ?',
+  'subject.englishlit.s3': 'Comment retenir les citations ?',
 
   'subject.furthermaths.name': 'Further Maths',
   'subject.furthermaths.description': 'Défi GCSE & A-level : calcul différentiel, matrices...',
@@ -579,6 +601,17 @@ const es: Dict = {
   'subject.spanish.s2': 'Ayúdame con el vocabulario',
   'subject.spanish.s3': '¿Practicamos mi pronunciación?',
 
+  'subject.englishlang.name': 'English Language',
+  'subject.englishlang.description': 'Análisis de textos y escritura',
+  'subject.englishlang.s1': 'Ayúdame a analizar este texto',
+  'subject.englishlang.s2': '¿Cómo planifico un texto descriptivo?',
+  'subject.englishlang.s3': '¿Cómo escribo sobre la estructura?',
+  'subject.englishlit.name': 'English Literature',
+  'subject.englishlit.description': 'Obras del programa, poesía y ensayo',
+  'subject.englishlit.s1': 'Ayúdame a planificar un ensayo',
+  'subject.englishlit.s2': '¿Cómo analizo un poema desconocido?',
+  'subject.englishlit.s3': '¿Cómo memorizo las citas?',
+
   'subject.furthermaths.name': 'Further Maths',
   'subject.furthermaths.description': 'Desafío GCSE y A-level: cálculo, matrices y más',
   'subject.furthermaths.s1': 'Ayúdame a derivar una función',
@@ -800,7 +833,11 @@ export function useSubjectName(): (id: string) => string {
   const { t, lang } = useI18n();
   const { family } = useFamily();
   return (id: string) => {
-    if (id === 'math' && lang === 'en' && family?.curriculum === 'uk') return 'Maths';
+    if (lang === 'en' && family?.curriculum === 'uk') {
+      if (id === 'math') return 'Maths';
+      // Pre-GCSE it is simply "English"; Years 10+ get the two named GCSEs
+      if (id === 'reading') return 'English';
+    }
     return t(`subject.${id}.name`);
   };
 }

@@ -101,6 +101,12 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 2. **Speaking practice** — the microphone listens in the language being learned, so a kid can say a phrase back and have it transcribed properly. Coaches are told they receive a transcript, never audio, so they comment on the words produced rather than pretending to hear an accent.
 3. **Language accuracy in practice** — gap-fill items must agree in gender, number and verb form with the expected answer (the "es el ___ / son las matemáticas" bug a tester's daughter caught), and the grader accepts a missing accent or article while still showing the correct written form.
 
+## Phase 8 — English as its real qualifications — ✅ shipped in PR #19
+
+1. **One subject up to Year 9, two GCSEs from Year 10.** UK families see plain "English" through KS2 and KS3, then English Language and English Literature as separate coaches with separate histories and mastery - the way schools, timetables and exam certificates actually treat them. US families keep the single Reading & Writing coach.
+2. **A coach each.** Coach Riley takes Language (unseen fiction and non-fiction, language and structure analysis, descriptive/transactional writing, and A-level frameworks); Coach Brontë takes Literature (Shakespeare, the 19th-century novel, modern texts, the anthology and unseen poetry, closed-book quotation recall, and A-level critical readings).
+3. **Shared visibility rules.** `client/src/subjects.ts` holds one set of rules - which subjects exist for a curriculum and year - used by the home screen, practice mode and the daily challenge, so a challenge naming "reading" opens English Language for a Year 11.
+
 ---
 
 ## Sequencing and what to measure
