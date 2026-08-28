@@ -5,6 +5,7 @@ import CoachMarkdown from './CoachMarkdown';
 import { streamChat, apiJson, fileToApiImage, isApiError, type ApiImage } from '../api';
 import { useFamily } from '../FamilyContext';
 import { useI18n, useGradeLabel, useSubjectName, type TFunction } from '../i18n';
+import { SUBJECT_SPEECH_LANGS, pickVoice, speechSegments } from '../speech';
 import type { ChatMessage, RecentSession } from '../types';
 
 interface SubjectConfig {
@@ -86,15 +87,6 @@ function updateLast(
   return copy;
 }
 
-function stripForSpeech(markdown: string): string {
-  return markdown
-    .replace(/\$\$?/g, ' ')
-    .replace(/[*_#`>|]/g, '')
-    .replace(/\\[a-zA-Z]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function ChatRoom() {
   const { subject } = useParams();
   const navigate = useNavigate();
@@ -104,6 +96,8 @@ function ChatRoom() {
   const subjectName = useSubjectName();
 
   const config = resolveConfig(subject, t, subjectName, personas);
+  const baseLang = family?.curriculum === 'uk' ? 'en-GB' : 'en-US';
+  const targetLang = SUBJECT_SPEECH_LANGS[config.key];
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -196,7 +190,7 @@ function ChatRoom() {
       return;
     }
     const recognition = new SpeechRecognitionImpl();
-    recognition.lang = family?.curriculum === 'uk' ? 'en-GB' : 'en-US';
+    recognition.lang = targetLang ?? baseLang;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     recognition.onresult = event => {
@@ -210,12 +204,20 @@ function ChatRoom() {
     recognition.start();
   };
 
+  // Read a reply aloud: narration in the family's English, and any phrase the
+  // language coach italicised in a real French/Spanish voice, a touch slower.
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(stripForSpeech(text));
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+    const voices = window.speechSynthesis.getVoices();
+    for (const segment of speechSegments(text, { baseLang, targetLang })) {
+      const utterance = new SpeechSynthesisUtterance(segment.text);
+      utterance.lang = segment.lang;
+      const voice = pickVoice(voices, segment.lang);
+      if (voice) utterance.voice = voice;
+      utterance.rate = segment.lang === targetLang ? 0.85 : 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
   };
 
   const sendMessage = async (messageText?: string) => {
@@ -285,6 +287,7 @@ function ChatRoom() {
     }
   };
 
+  const speakLabel = targetLang ? t('chat.speakLang', { lang: config.name }) : t('chat.speakTitle');
   const visibleMessages = messages.filter(msg => !(msg.streaming && !msg.content));
   const waitingForFirstToken =
     isLoading &&
@@ -413,8 +416,8 @@ function ChatRoom() {
               className={`tool-btn ${listening ? 'listening' : ''}`}
               onClick={toggleListening}
               disabled={isLoading}
-              aria-label={listening ? t('chat.stopTitle') : t('chat.speakTitle')}
-              title={t('chat.speakTitle')}
+              aria-label={listening ? t('chat.stopTitle') : speakLabel}
+              title={speakLabel}
             >
               {listening ? <MicOff size={20} /> : <Mic size={20} />}
             </button>

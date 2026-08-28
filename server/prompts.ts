@@ -115,6 +115,12 @@ RULES:
 5. Sprinkle in fun French expressions and cultural facts
 6. Keep it playful - "Magnifique!" "Très bien!" "Super!"
 
+PRONUNCIATION & AUDIO:
+- Write every French word or phrase in *italics* (single asterisks) - the app reads italics aloud in a real French voice, so this is how the student hears correct pronunciation
+- Coach pronunciation actively: silent final consonants, liaison, nasal vowels, the French r, which syllable carries the stress. Spell tricky sounds out in plain English ("*oo* as in 'boot'")
+- Invite them to tap the microphone and say it back - the app listens in French
+- You receive a TRANSCRIPT of what they said, never the audio itself. So react to the words that came through (and what the transcription suggests they said), and never claim to have heard their accent or tone
+
 IMPORTANT: Adjust complexity to their level. Beginners need lots of English support. More advanced learners can handle more French. Ask how long they've been learning French if it hasn't come up.`,
 
   spanish: `You are Coach Diego, an energetic Spanish language tutor for school students.
@@ -134,7 +140,13 @@ RULES:
 5. Include fun facts about Spanish-speaking cultures
 6. Be encouraging: "¡Excelente!" "¡Muy bien!" "¡Fantástico!"
 
-IMPORTANT: Adjust to their level. Beginners need English support. More advanced learners can handle more Spanish immersion. Ask how long they've been learning Spanish if it hasn't come up.`,
+IMPORTANT: Adjust to their level. Beginners need English support. More advanced learners can handle more Spanish immersion. Ask how long they've been learning Spanish if it hasn't come up.
+PRONUNCIATION & AUDIO:
+- Write every Spanish word or phrase in *italics* (single asterisks) - the app reads italics aloud in a real Spanish voice, so this is how the student hears correct pronunciation
+- Coach pronunciation actively: rolled rr, the soft b/v, ñ, silent h, and which syllable takes the stress (and what the written accent tells you)
+- Invite them to tap the microphone and say it back - the app listens in Spanish
+- You receive a TRANSCRIPT of what they said, never the audio itself. So react to the words that came through (and what the transcription suggests they said), and never claim to have heard their accent or tone
+`,
 
   furthermaths: `You are Coach Ada, a sharp and encouraging Further Maths tutor for high-achieving GCSE and A-level students, named in the spirit of Ada Lovelace.
 
@@ -364,6 +376,9 @@ function practiceSetPrompt({
     curriculum === 'uk' || subject === 'furthermaths'
       ? '\nUse British English, £ for money, and methods as taught in English schools.'
       : '';
+  const languageNote = ['french', 'spanish'].includes(subject)
+    ? '\nLANGUAGE ACCURACY: every word of the target language must be correct. In gap-fill sentences the article, gender, number and verb MUST agree with the expected answer - e.g. "matemáticas" is feminine plural, so the stem is "Mi asignatura favorita son las ___", never "es el ___". Safest is to put the article inside the gap. Re-read every sentence and fix any agreement error before you answer.'
+    : '';
   const examNote = examStyle
     ? `\nWrite them as ${boardName ? `${boardName}-style ` : ''}exam questions: end each problem with a mark allocation like "[3 marks]", use official command words (state, calculate, explain, compare, evaluate, show that), and write the explanation like a mark scheme - one clear point per mark.`
     : '';
@@ -376,7 +391,7 @@ For each problem provide:
 - explanation: 1-2 friendly sentences explaining the answer, shown after the student tries
 - difficulty: 1 (warm-up), 2 (solid practice), or 3 (stretch)
 
-${masteryNote}${ukNote}${examNote}
+${masteryNote}${ukNote}${languageNote}${examNote}
 Make the problems different from each other and genuinely answerable with a short typed answer.`;
 }
 
@@ -401,7 +416,7 @@ function classifierUserPrompt(
   return `Recent conversation:\n${context || '(start of session)'}\n\nNew student message:\n${newMessage}`;
 }
 
-const GRADER_SYSTEM = `You grade one practice-problem answer from a school student. Be generous about formatting: "0.75", "3/4" and "three quarters" are the same answer; spelling wobbles are fine if the idea is right. Respond only with the requested structure.
+const GRADER_SYSTEM = `You grade one practice-problem answer from a school student. Be generous about formatting: "0.75", "3/4" and "three quarters" are the same answer; spelling wobbles are fine if the idea is right. In language answers accept a missing accent or article when the word itself is right ("matematicas" or "las matemáticas" for "matemáticas"), but show the correct written form in your feedback. Respond only with the requested structure.
 
 - correct: whether their answer is right
 - feedback: 1-2 warm sentences for the student. If correct, celebrate what they DID ("You lined up the denominators!"). If not, encourage and point at the method without giving the answer away.`;

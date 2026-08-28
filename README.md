@@ -15,6 +15,7 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 - **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
 - **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365) for Years 9-11 and A-level Further Mathematics for sixth-formers: surds, the factor theorem, calculus, complex numbers, matrix transformations, circle theorems and more
 - **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints; UK Year 10+ kids can flip on exam-style questions with command words, mark allocations and mark-scheme feedback
+- **🔊 Real pronunciation for languages** - French and Spanish coaches mark target-language phrases so replies are read aloud in a genuine French/Spanish voice (slower than the English narration), and the microphone listens in that language so kids can say it back
 - **⚡ Live streaming replies** - The coach starts "typing" instantly
 - **🎯 Level-appropriate** - Each kid has a profile with their US grade (3-8) or UK school year (Years 3-13, KS2 through A-level)
 

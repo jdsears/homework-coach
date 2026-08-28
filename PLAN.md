@@ -95,6 +95,12 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 2. **Exam-style practice** — a toggle for Year 10+ UK kids formats generated problems as exam questions: official command words, "[n marks]" allocations, mark-scheme-style explanations — board-flavoured when a board is set. Real past papers stay with the boards (they're copyrighted); the practice screen links to each board's official past-paper page instead.
 3. **Deploy resilience** — the server retries opening the database for up to ~30s at boot (riding out Railway's volume hand-off between deployments) and shuts down cleanly on SIGTERM, so redeploys stop reading as crashes.
 
+## Phase 7 — Languages: pronunciation & accuracy — ✅ shipped in PR #16
+
+1. **Correct-language read-aloud** — French/Spanish coaches wrap target-language phrases in italics, so a reply is spoken as English narration with genuinely French/Spanish-accented phrases inside it (a touch slower), instead of one English voice reading everything.
+2. **Speaking practice** — the microphone listens in the language being learned, so a kid can say a phrase back and have it transcribed properly. Coaches are told they receive a transcript, never audio, so they comment on the words produced rather than pretending to hear an accent.
+3. **Language accuracy in practice** — gap-fill items must agree in gender, number and verb form with the expected answer (the "es el ___ / son las matemáticas" bug a tester's daughter caught), and the grader accepts a missing accent or article while still showing the correct written form.
+
 ---
 
 ## Sequencing and what to measure
