@@ -74,6 +74,9 @@ body {
 
 .app {
   min-height: 100vh;
+  /* dvh tracks Safari's shrinking toolbar, so the shell is never taller than
+     the screen (which used to leave the page scrollable by a few pixels). */
+  min-height: 100dvh;
   padding-bottom: calc(80px + var(--safe-bottom));
 }
 
@@ -306,12 +309,16 @@ h2 {
 .chat-room {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* Exactly the room .app leaves above the fixed bottom nav, so the page
+     itself never scrolls - otherwise the sticky header floats over the chat.
+     dvh keeps it right while Safari's toolbar grows and shrinks. */
+  height: calc(100vh - 80px - var(--safe-bottom));
+  height: calc(100dvh - 80px - var(--safe-bottom));
   background: var(--bg-chat);
 }
 
 .chat-header {
-  background: var(--bg-card);
+  background: #ffffff;
   padding: var(--space-md) var(--space-lg);
   display: flex;
   align-items: center;
@@ -354,10 +361,19 @@ h2 {
 .messages-container {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-top: var(--space-md);
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+/* Lets the newest question sit at the top of the view even when its answer
+   is short - the reply then streams into the space below it. */
+.messages-tail {
+  flex-shrink: 0;
 }
 
 .message {
