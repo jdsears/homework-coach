@@ -89,6 +89,12 @@ The unlock phase. Everything later depends on this. (Prompt caching intentionall
 4. **A-levels in the core subjects** — Years 12–13 (KS5, sixth form) with per-subject A-level guides: Mathematics (pure, statistics, mechanics — DfE-prescribed, board-identical), the three sciences (practical endorsement, maths-skills weightings), English Literature/Language, Geography and History (including the NEA), and French/Spanish (set texts and film, translation, the individual research project). The coaches know content varies by board and ask when it matters.
 5. **UI polish** — curriculum picker on signup, curriculum switcher in parent settings, a GCSE badge on the Further Maths card, consistent custom-styled dropdowns, an auto-growing chat input, en-GB speech recognition for UK families, and an active-tab pill in the bottom nav.
 
+## Phase 6 — Exam boards & exam-style practice — ✅ shipped in PR #15
+
+1. **Per-kid exam board + course notes** — Year 10+ UK kids can be tagged with AQA, Pearson Edexcel, OCR or WJEC Eduqas plus a free-text courses/set-texts note (the higher-signal field for English Lit and History); both feed an EXAM CONTEXT block in every coach's system prompt.
+2. **Exam-style practice** — a toggle for Year 10+ UK kids formats generated problems as exam questions: official command words, "[n marks]" allocations, mark-scheme-style explanations — board-flavoured when a board is set. Real past papers stay with the boards (they're copyrighted); the practice screen links to each board's official past-paper page instead.
+3. **Deploy resilience** — the server retries opening the database for up to ~30s at boot (riding out Railway's volume hand-off between deployments) and shuts down cleanly on SIGTERM, so redeploys stop reading as crashes.
+
 ---
 
 ## Sequencing and what to measure

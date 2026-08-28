@@ -16,6 +16,8 @@ import {
   subjectSystemPrompt,
   CURRICULA,
   type Curriculum,
+  EXAM_BOARDS,
+  EXAM_BOARD_NAMES,
   CHEAT_REDIRECT,
   detectCheatAttempt,
   practiceSetPrompt,
@@ -200,10 +202,12 @@ export function createApp({
       'INSERT INTO children (id, family_id, name, grade, created_at) VALUES (?, ?, ?, ?, ?)'
     ),
     childrenByFamily: db.prepare(
-      'SELECT id, name, grade FROM children WHERE family_id = ? ORDER BY created_at, id'
+      'SELECT id, name, grade, exam_board AS examBoard, course_notes AS courseNotes FROM children WHERE family_id = ? ORDER BY created_at, id'
     ),
     childById: db.prepare('SELECT * FROM children WHERE id = ?'),
-    updateChild: db.prepare('UPDATE children SET name = ?, grade = ? WHERE id = ?'),
+    updateChild: db.prepare(
+      'UPDATE children SET name = ?, grade = ?, exam_board = ?, course_notes = ? WHERE id = ?'
+    ),
     updateChildMemory: db.prepare('UPDATE children SET memory = ? WHERE id = ?'),
     insertSession: db.prepare(
       'INSERT INTO sessions (id, child_id, subject, started_at, last_active_at) VALUES (?, ?, ?, ?, ?)'
@@ -446,9 +450,22 @@ export function createApp({
     child: ChildRow,
     curriculum: Curriculum
   ): Array<Record<string, unknown>> => {
+    const year = Number(child.grade);
+    const examTarget =
+      curriculum === 'uk' && year >= 10 ? (year >= 12 ? 'their A-levels' : 'their GCSEs') : '';
+    const boardName = EXAM_BOARD_NAMES[child.exam_board] || '';
+    const examContext =
+      examTarget || boardName || child.course_notes
+        ? `\n\nEXAM CONTEXT: ${child.name} is working toward ${examTarget || 'exams'}` +
+          (boardName ? ` with the ${boardName} exam board` : '') +
+          '.' +
+          (child.course_notes ? ` Their courses and set texts: ${child.course_notes}.` : '') +
+          ' Tailor examples, terminology and exam technique accordingly.'
+        : '';
     const studentContext =
       `The student's name is ${child.name} and they are in ${levelLabelFor(curriculum, child.grade)}. ` +
       'Use their name naturally now and then.' +
+      examContext +
       (child.memory
         ? `\n\nWhat you remember about ${child.name} from earlier sessions: ${child.memory}`
         : '');
@@ -531,7 +548,13 @@ export function createApp({
       return kidList.map(kid => {
         const id = uuidv4();
         stmts.insertChild.run(id, familyId, kid.name.trim(), String(kid.grade), ts);
-        return { id, name: kid.name.trim(), grade: String(kid.grade) };
+        return {
+          id,
+          name: kid.name.trim(),
+          grade: String(kid.grade),
+          examBoard: '',
+          courseNotes: '',
+        };
       });
     })();
 
@@ -596,7 +619,13 @@ export function createApp({
     }
     const id = uuidv4();
     stmts.insertChild.run(id, req.family.id, kid.name!.trim(), String(kid.grade), now());
-    res.json({ id, name: kid.name!.trim(), grade: String(kid.grade) });
+    res.json({
+      id,
+      name: kid.name!.trim(),
+      grade: String(kid.grade),
+      examBoard: '',
+      courseNotes: '',
+    });
   });
 
   app.patch('/api/children/:id', requireFamily, requireParent, (req: Request, res: Response) => {
@@ -604,7 +633,12 @@ export function createApp({
     if (!child || child.family_id !== req.family.id) {
       return res.status(404).json({ error: 'No such kid in your family' });
     }
-    const body = (req.body || {}) as { name?: unknown; grade?: unknown };
+    const body = (req.body || {}) as {
+      name?: unknown;
+      grade?: unknown;
+      examBoard?: unknown;
+      courseNotes?: unknown;
+    };
     const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : child.name;
     const grade = GRADE_SETS[req.family.curriculum].includes(String(body.grade))
       ? String(body.grade)
@@ -612,8 +646,22 @@ export function createApp({
     if (name.length > 40) {
       return res.status(400).json({ error: 'That name is a bit long!' });
     }
-    stmts.updateChild.run(name, grade, child.id);
-    res.json({ id: child.id, name, grade });
+    let examBoard = child.exam_board;
+    if ('examBoard' in body) {
+      const candidate = String(body.examBoard ?? '');
+      if (candidate !== '' && !EXAM_BOARDS.includes(candidate)) {
+        return res.status(400).json({ error: 'Unknown exam board' });
+      }
+      examBoard = candidate;
+    }
+    let courseNotes = child.course_notes;
+    if ('courseNotes' in body) {
+      courseNotes = String(body.courseNotes ?? '')
+        .trim()
+        .slice(0, 300);
+    }
+    stmts.updateChild.run(name, grade, examBoard, courseNotes, child.id);
+    res.json({ id: child.id, name, grade, examBoard, courseNotes });
   });
 
   // ---------------------------------------------------------------------------
@@ -861,10 +909,11 @@ export function createApp({
 
   app.post('/api/practice/generate', requireFamily, async (req: Request, res: Response) => {
     try {
-      const { childId, subject, topic } = (req.body || {}) as {
+      const { childId, subject, topic, examStyle } = (req.body || {}) as {
         childId?: unknown;
         subject?: unknown;
         topic?: unknown;
+        examStyle?: unknown;
       };
 
       const child = childForFamily(childId, req.family.id);
@@ -878,6 +927,9 @@ export function createApp({
       if (overBudget(req.family.id)) return res.status(429).json({ error: BUDGET_MESSAGE });
 
       const cleanTopic = normalizeTopic(topic || subject);
+      // Exam-style formatting is a Year 10+ UK thing (GCSE and A-level years)
+      const wantsExamStyle =
+        Boolean(examStyle) && req.family.curriculum === 'uk' && Number(child.grade) >= 10;
       const response = await parseStructured(anthropic, {
         system: subjectSystemPrompt(subject, req.family.curriculum) as string,
         messages: [
@@ -889,6 +941,8 @@ export function createApp({
               subject,
               topic: cleanTopic,
               masteryNote: masteryNoteFor(child, subject, cleanTopic),
+              examStyle: wantsExamStyle,
+              boardName: wantsExamStyle ? EXAM_BOARD_NAMES[child.exam_board] || '' : '',
             }),
           },
         ],

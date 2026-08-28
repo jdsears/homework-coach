@@ -19,7 +19,24 @@ export interface Child {
   id: string;
   name: string;
   grade: string;
+  examBoard: string;
+  courseNotes: string;
 }
+
+// GCSE/A-level exam boards ('' = not set) and where their real past papers live.
+export const EXAM_BOARDS = ['aqa', 'edexcel', 'ocr', 'wjec'] as const;
+export const EXAM_BOARD_LABELS: Record<string, string> = {
+  aqa: 'AQA',
+  edexcel: 'Pearson Edexcel',
+  ocr: 'OCR',
+  wjec: 'WJEC Eduqas',
+};
+export const PAST_PAPER_URLS: Record<string, string> = {
+  aqa: 'https://www.aqa.org.uk/find-past-papers-and-mark-schemes',
+  edexcel: 'https://qualifications.pearson.com/en/support/support-topics/exams/past-papers.html',
+  ocr: 'https://www.ocr.org.uk/qualifications/past-paper-finder/',
+  wjec: 'https://www.eduqas.co.uk/home/past-papers/',
+};
 
 export interface Persona {
   id: string;

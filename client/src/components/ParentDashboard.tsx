@@ -21,7 +21,13 @@ import { useFamily } from '../FamilyContext';
 import { LANGUAGE_NAMES, useI18n, useGradeLabel } from '../i18n';
 import { getReadingFont, storeReadingFont, type Lang } from '../prefs';
 import ActivityChart from './ActivityChart';
-import { GRADE_SETS, type Curriculum, type ParentSummary } from '../types';
+import {
+  EXAM_BOARDS,
+  EXAM_BOARD_LABELS,
+  GRADE_SETS,
+  type Curriculum,
+  type ParentSummary,
+} from '../types';
 
 function ParentDashboard() {
   const navigate = useNavigate();
@@ -180,9 +186,9 @@ function ParentDashboard() {
     }
   };
 
-  const changeKidGrade = async (id: string, grade: string) => {
+  const patchKid = async (id: string, patch: Record<string, string>) => {
     try {
-      await apiJson(`/api/children/${id}`, { method: 'PATCH', body: { grade } });
+      await apiJson(`/api/children/${id}`, { method: 'PATCH', body: patch });
       await refresh();
       fetchSummary();
     } catch (error) {
@@ -328,7 +334,7 @@ function ParentDashboard() {
                 <select
                   className="kid-grade-select"
                   value={kid.grade}
-                  onChange={e => changeKidGrade(kid.id, e.target.value)}
+                  onChange={e => patchKid(kid.id, { grade: e.target.value })}
                   aria-label={t('parent.kidYear', { name: kid.name })}
                 >
                   {(grades.includes(kid.grade) ? grades : [kid.grade, ...grades]).map(grade => (
@@ -344,6 +350,36 @@ function ParentDashboard() {
                 })}
               </span>
             </div>
+            {family?.curriculum === 'uk' && Number(kid.grade) >= 10 && (
+              <div className="kid-exam-row">
+                <select
+                  className="kid-grade-select"
+                  value={kid.examBoard}
+                  onChange={e => patchKid(kid.id, { examBoard: e.target.value })}
+                  aria-label={t('parent.examBoard', { name: kid.name })}
+                >
+                  <option value="">{t('parent.examBoardNone')}</option>
+                  {EXAM_BOARDS.map(board => (
+                    <option key={board} value={board}>
+                      {EXAM_BOARD_LABELS[board]}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  key={`${kid.id}-notes-${kid.courseNotes}`}
+                  type="text"
+                  defaultValue={kid.courseNotes}
+                  placeholder={t('parent.courseNotesPh')}
+                  maxLength={300}
+                  aria-label={t('parent.courseNotes', { name: kid.name })}
+                  onBlur={e => {
+                    if (e.target.value.trim() !== kid.courseNotes) {
+                      patchKid(kid.id, { courseNotes: e.target.value });
+                    }
+                  }}
+                />
+              </div>
+            )}
             {(kid.strengths.length > 0 || kid.focusAreas.length > 0) && (
               <div className="mastery-chips">
                 {kid.strengths.map(topic => (

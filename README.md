@@ -14,7 +14,7 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 - **🔬 Science Coach** - Explore how the world works through inquiry
 - **🌍 Geography, 🏛️ History, 🇫🇷 French, 🇪🇸 Spanish** - Seven coaches in all
 - **📐 Further Maths (UK)** - Coach Ada covers the AQA Level 2 Certificate (8365) for Years 9-11 and A-level Further Mathematics for sixth-formers: surds, the factor theorem, calculus, complex numbers, matrix transformations, circle theorems and more
-- **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints
+- **✨ Practice Mode** - Custom practice problems with tap-to-reveal hints; UK Year 10+ kids can flip on exam-style questions with command words, mark allocations and mark-scheme feedback
 - **⚡ Live streaming replies** - The coach starts "typing" instantly
 - **🎯 Level-appropriate** - Each kid has a profile with their US grade (3-8) or UK school year (Years 3-13, KS2 through A-level)
 
@@ -22,6 +22,7 @@ A kid-safe AI tutoring app that helps children learn through the Socratic method
 
 - **👨‍👩‍👧 Family accounts** - Sign up once, add each kid, sign in anywhere with your family code + parent PIN
 - **🇺🇸🇬🇧 UK or US school system** - UK is the default; pick at signup or switch in parent settings. UK families get school years, British English coaching aligned with the English national curriculum (KS2 SATs through 9-1 GCSEs and A-levels in the core subjects), and the Further Maths coach
+- **🎓 Exam boards & set texts** - Tag each Year 10+ kid with their board (AQA, Pearson Edexcel, OCR, WJEC Eduqas) and their courses/set texts; every coach tailors terminology and exam technique to them, and practice links to the board's official past papers
 - **🔒 Private by design** - Kids' conversations belong to your family only; the parent dashboard is PIN-protected and never shows kids' raw words
 - **📊 Weekly dashboard** - Time-on-task, per-kid mastery, a 14-day activity chart, and an optional Sunday email digest
 - **🤖 Custom coaches** - Create a coach for anything (chess, coding, piano); they follow the same guide-not-tell rules

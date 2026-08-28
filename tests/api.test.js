@@ -972,3 +972,90 @@ describe('UK curriculum & Further Maths', () => {
     expect((await agent.get('/api/family/me')).body.family.curriculum).toBe('uk');
   });
 });
+describe('exam boards & exam-style practice', () => {
+  it('stores a kid exam board and course notes, and rejects unknown boards', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '11' }],
+    });
+
+    expect(
+      (await agent.patch(`/api/children/${children[0].id}`).send({ examBoard: 'cambridge' })).status
+    ).toBe(400);
+
+    const patched = await agent.patch(`/api/children/${children[0].id}`).send({
+      examBoard: 'aqa',
+      courseNotes: 'English Lit: Macbeth, A Christmas Carol, Power & Conflict',
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.examBoard).toBe('aqa');
+
+    const me = await agent.get('/api/family/me');
+    expect(me.body.children[0].examBoard).toBe('aqa');
+    expect(me.body.children[0].courseNotes).toContain('Macbeth');
+  });
+
+  it('feeds the board and set texts into coaching', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '11' }],
+    });
+    await agent.patch(`/api/children/${children[0].id}`).send({
+      examBoard: 'aqa',
+      courseNotes: 'English Lit: Macbeth and A Christmas Carol',
+    });
+
+    await agent.post('/api/chat').send({
+      childId: children[0].id,
+      subject: 'reading',
+      message: 'Help me revise Macbeth themes',
+    });
+
+    const system = JSON.stringify(ctx.anthropic.calls.stream.at(-1).system);
+    expect(system).toContain('their GCSEs');
+    expect(system).toContain('AQA');
+    expect(system).toContain('Macbeth and A Christmas Carol');
+  });
+
+  it('generates exam-style practice for Year 10+ UK kids only', async () => {
+    const ctx = build();
+    const agent = request.agent(ctx.app);
+    const { children } = await signupFamily(agent, {
+      curriculum: 'uk',
+      children: [{ name: 'Grace', grade: '11' }],
+    });
+    await agent.patch(`/api/children/${children[0].id}`).send({ examBoard: 'aqa' });
+
+    const res = await agent.post('/api/practice/generate').send({
+      childId: children[0].id,
+      subject: 'math',
+      topic: 'quadratics',
+      examStyle: true,
+    });
+    expect(res.status).toBe(200);
+
+    const ukGen = ctx.anthropic.calls.parse
+      .filter(call => JSON.stringify(call.messages).includes('practice problems for a Year'))
+      .at(-1);
+    expect(ukGen.messages[0].content).toContain('mark allocation');
+    expect(ukGen.messages[0].content).toContain('AQA-style');
+
+    // A US family asking for examStyle gets plain problems
+    const usAgent = request.agent(ctx.app);
+    const usFamily = await signupFamily(usAgent, { familyName: 'Others' });
+    await usAgent.post('/api/practice/generate').send({
+      childId: usFamily.children[0].id,
+      subject: 'math',
+      topic: 'fractions',
+      examStyle: true,
+    });
+    const usGen = ctx.anthropic.calls.parse
+      .filter(call => JSON.stringify(call.messages).includes('practice problems for a grade'))
+      .at(-1);
+    expect(usGen.messages[0].content).not.toContain('mark allocation');
+  });
+});

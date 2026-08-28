@@ -4,7 +4,7 @@ import CoachMarkdown from './CoachMarkdown';
 import { apiJson, isApiError } from '../api';
 import { useFamily } from '../FamilyContext';
 import { useI18n, useGradeLabel, useSubjectName } from '../i18n';
-import type { PracticeProblem } from '../types';
+import { EXAM_BOARD_LABELS, PAST_PAPER_URLS, type PracticeProblem } from '../types';
 
 const SUBJECT_IDS = ['math', 'reading', 'science', 'geography', 'history', 'french', 'spanish'];
 const UK_SUBJECT_IDS = [...SUBJECT_IDS, 'furthermaths'];
@@ -191,8 +191,11 @@ function PracticeMode() {
   const gradeLabel = useGradeLabel();
   const subjectName = useSubjectName();
   const subjectIds = family?.curriculum === 'uk' ? UK_SUBJECT_IDS : SUBJECT_IDS;
+  const examEligible =
+    family?.curriculum === 'uk' && activeChild != null && Number(activeChild.grade) >= 10;
   const [subject, setSubject] = useState('math');
   const [topic, setTopic] = useState('');
+  const [examStyle, setExamStyle] = useState(false);
   const [problems, setProblems] = useState<PracticeProblem[]>([]);
   const [current, setCurrent] = useState(0);
   const [results, setResults] = useState<Record<number, boolean>>({});
@@ -234,7 +237,12 @@ function PracticeMode() {
     try {
       const data = await apiJson<{ problems: PracticeProblem[] }>('/api/practice/generate', {
         method: 'POST',
-        body: { childId: activeChild.id, subject, topic: topic || subject },
+        body: {
+          childId: activeChild.id,
+          subject,
+          topic: topic || subject,
+          examStyle: examEligible && examStyle,
+        },
       });
       setProblems(data.problems);
       setCurrent(0);
@@ -323,6 +331,32 @@ function PracticeMode() {
                   placeholder={t('practice.topicPh')}
                 />
               </div>
+
+              {examEligible && (
+                <div className="exam-style-row">
+                  <button
+                    type="button"
+                    className={`tab-btn exam-style-btn ${examStyle ? 'active' : ''}`}
+                    aria-pressed={examStyle}
+                    onClick={() => setExamStyle(v => !v)}
+                  >
+                    {t('practice.examStyle')}
+                  </button>
+                  <span className="field-note">{t('practice.examStyleNote')}</span>
+                  {activeChild.examBoard && PAST_PAPER_URLS[activeChild.examBoard] && (
+                    <a
+                      className="past-papers-link"
+                      href={PAST_PAPER_URLS[activeChild.examBoard]}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {t('practice.pastPapers', {
+                        board: EXAM_BOARD_LABELS[activeChild.examBoard],
+                      })}
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
             <button className="generate-btn" onClick={generateProblems} disabled={isLoading}>
