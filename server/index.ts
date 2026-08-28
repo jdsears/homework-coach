@@ -3,6 +3,7 @@ dotenv.config();
 
 import path from 'path';
 import * as Sentry from '@sentry/node';
+import type Database from 'better-sqlite3';
 import { createDb } from './db';
 import { createAnthropic, CHAT_MODEL } from './claude';
 import { createApp } from './app';
@@ -33,17 +34,57 @@ if (process.env.SENTRY_DSN) {
   logger.info('sentry error tracking enabled');
 }
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'homework-coach.db');
-const db = createDb(dbPath);
-const app = createApp({ db, anthropic: createAnthropic() });
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-if (process.env.SENTRY_DSN) {
-  Sentry.setupExpressErrorHandler(app);
+// On platforms where the data volume moves between deployments (e.g. Railway),
+// the new container can start a beat before the volume is attached. Retrying
+// the open rides out that hand-off instead of crash-looping.
+async function openDbWithRetry(dbPath: string, attempts = 10, delayMs = 3000) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return createDb(dbPath);
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      logger.warn(
+        { attempt, attempts, err: (error as Error).message },
+        'database not ready yet - retrying'
+      );
+      await sleep(delayMs);
+    }
+  }
 }
 
-startWeeklyDigests(db);
+async function main() {
+  const dbPath =
+    process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'homework-coach.db');
+  const db: Database.Database = await openDbWithRetry(dbPath);
+  const app = createApp({ db, anthropic: createAnthropic() });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  logger.info({ port: PORT, model: CHAT_MODEL, db: dbPath }, '🎓 Homework Coach server running');
+  if (process.env.SENTRY_DSN) {
+    Sentry.setupExpressErrorHandler(app);
+  }
+
+  startWeeklyDigests(db);
+
+  const PORT = process.env.PORT || 3001;
+  const server = app.listen(PORT, () => {
+    logger.info({ port: PORT, model: CHAT_MODEL, db: dbPath }, '🎓 Homework Coach server running');
+  });
+
+  // Exit cleanly on platform stop signals so redeploys don't read as crashes
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, () => {
+      logger.info({ signal }, 'shutting down');
+      server.close(() => {
+        db.close();
+        process.exit(0);
+      });
+      setTimeout(() => process.exit(0), 5000).unref();
+    });
+  }
+}
+
+main().catch(error => {
+  logger.fatal({ err: (error as Error).message }, 'failed to start');
+  process.exit(1);
 });

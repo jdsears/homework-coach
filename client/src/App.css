@@ -2049,6 +2049,56 @@ body.reading-font textarea {
   letter-spacing: 0.05em;
 }
 
+/* Per-kid exam board + course notes (UK Years 10+) */
+.kid-exam-row {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.kid-exam-row input {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.kid-exam-row input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Exam-style practice toggle */
+.exam-style-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  align-items: flex-start;
+}
+
+.exam-style-btn {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.past-papers-link {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.past-papers-link:hover {
+  text-decoration: underline;
+}
+
 /* ============================================
    POLISH: CONSISTENT DROPDOWNS
    ============================================ */

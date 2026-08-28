@@ -226,6 +226,8 @@ export function childProgress(db: Database.Database, child: ChildRow): ChildProg
 }
 
 export interface ChildSummary extends Pick<ChildRow, 'id' | 'name' | 'grade'> {
+  examBoard: string;
+  courseNotes: string;
   messageCount: number;
   practiceCount: number;
   minutes: number;
@@ -304,8 +306,12 @@ export function familySummary(db: Database.Database, family: FamilyRow): FamilyS
   ).total;
 
   const childRows = db
-    .prepare('SELECT id, name, grade FROM children WHERE family_id = ? ORDER BY created_at, id')
-    .all(family.id) as Array<Pick<ChildRow, 'id' | 'name' | 'grade'>>;
+    .prepare(
+      'SELECT id, name, grade, exam_board AS examBoard, course_notes AS courseNotes FROM children WHERE family_id = ? ORDER BY created_at, id'
+    )
+    .all(family.id) as Array<
+    Pick<ChildRow, 'id' | 'name' | 'grade'> & { examBoard: string; courseNotes: string }
+  >;
 
   const children: ChildSummary[] = childRows.map(child => {
     const messageRows = db

@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS children (
   family_id TEXT NOT NULL REFERENCES families(id),
   name TEXT NOT NULL,
   grade TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  exam_board TEXT NOT NULL DEFAULT '',
+  course_notes TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -150,6 +152,8 @@ export function createDb(dbPath: string): Database.Database {
   ensureColumn(db, 'practice_attempts', 'problem_id', 'INTEGER');
   ensureColumn(db, 'families', 'digest_email', "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, 'families', 'curriculum', "TEXT NOT NULL DEFAULT 'uk'");
+  ensureColumn(db, 'children', 'exam_board', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, 'children', 'course_notes', "TEXT NOT NULL DEFAULT ''");
 
   return db;
 }

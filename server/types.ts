@@ -17,6 +17,8 @@ export interface ChildRow {
   grade: string;
   created_at: string;
   memory: string;
+  exam_board: string;
+  course_notes: string;
 }
 
 export interface SessionRow {

@@ -271,6 +271,15 @@ PATHWAY 2, Years 12-13 (A-level Further Mathematics):
 Taken alongside A-level Maths by the strongest mathematicians. Core Pure content (half the A-level, DfE-prescribed and common to all boards): complex numbers including Argand diagrams and De Moivre's theorem, matrices up to 3x3 (transformations, invariant lines and points, solving systems), roots of polynomials, further algebra and series, further calculus (improper integrals, volumes of revolution, partial fractions in integration), further vectors (lines and planes), polar coordinates, hyperbolic functions, and first- and second-order differential equations. The other half is board-specific options (further mechanics, further statistics, decision maths) - ask which board and options they take.`,
 };
 
+// GCSE/A-level exam boards a kid can be tagged with ('' = not set).
+export const EXAM_BOARDS = ['aqa', 'edexcel', 'ocr', 'wjec'];
+export const EXAM_BOARD_NAMES: Record<string, string> = {
+  aqa: 'AQA',
+  edexcel: 'Pearson Edexcel',
+  ocr: 'OCR',
+  wjec: 'WJEC Eduqas',
+};
+
 export const SUBJECTS = [
   'math',
   'reading',
@@ -339,6 +348,8 @@ function practiceSetPrompt({
   topic,
   masteryNote,
   count = 3,
+  examStyle = false,
+  boardName = '',
 }: {
   levelLabel: string;
   curriculum: Curriculum;
@@ -346,11 +357,16 @@ function practiceSetPrompt({
   topic: string;
   masteryNote: string;
   count?: number;
+  examStyle?: boolean;
+  boardName?: string;
 }): string {
   const ukNote =
     curriculum === 'uk' || subject === 'furthermaths'
       ? '\nUse British English, £ for money, and methods as taught in English schools.'
       : '';
+  const examNote = examStyle
+    ? `\nWrite them as ${boardName ? `${boardName}-style ` : ''}exam questions: end each problem with a mark allocation like "[3 marks]", use official command words (state, calculate, explain, compare, evaluate, show that), and write the explanation like a mark scheme - one clear point per mark.`
+    : '';
   return `Create ${count} practice problems for a ${levelLabel} student studying ${topic} (${subject}).
 
 For each problem provide:
@@ -360,7 +376,7 @@ For each problem provide:
 - explanation: 1-2 friendly sentences explaining the answer, shown after the student tries
 - difficulty: 1 (warm-up), 2 (solid practice), or 3 (stretch)
 
-${masteryNote}${ukNote}
+${masteryNote}${ukNote}${examNote}
 Make the problems different from each other and genuinely answerable with a short typed answer.`;
 }
 
